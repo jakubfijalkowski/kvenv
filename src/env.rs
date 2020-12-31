@@ -1,9 +1,18 @@
+use anyhow::{Error, Result};
 use azure_identity::token_credentials::{ClientSecretCredential, TokenCredentialOptions};
-use azure_key_vault::KeyVaultClient;
+use azure_key_vault::{KeyVaultClient, KeyVaultError};
 use clap::{ArgSettings, Clap};
 use serde_json::Value;
 use std::collections::HashMap;
-use tokio::runtime::Runtime;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum EnvLoadError {
+    #[error("cannot load secret from keyvault")]
+    CannotLoadSecret(#[from] KeyVaultError),
+    #[error("invalid format - the object is not a map or not all keys are strings")]
+    InvalidSecretFormat,
+}
 
 #[derive(Clap, Debug)]
 pub struct EnvConfig {
@@ -62,7 +71,7 @@ fn can_put_to_env(v: &Value) -> bool {
     v.is_string() || v.is_boolean() || v.is_number() || v.is_null()
 }
 
-pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv, Box<dyn std::error::Error>> {
+pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     let creds = ClientSecretCredential::new(
         cfg.tenant_id,
         cfg.client_id,
@@ -70,7 +79,10 @@ pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv, Box<dyn std::erro
         TokenCredentialOptions::default(),
     );
     let mut client = KeyVaultClient::new(&creds, &cfg.keyvault_name);
-    let secret = client.get_secret(&cfg.secret_name).await?;
+    let secret = client
+        .get_secret(&cfg.secret_name)
+        .await
+        .map_err(EnvLoadError::CannotLoadSecret)?;
     let secret = secret.value();
     let value: Value = serde_json::from_str(secret)?;
     match value {
@@ -78,7 +90,7 @@ pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv, Box<dyn std::erro
             let from_kv: Vec<_> = m.into_iter().map(|(k, v)| (k, v.to_string())).collect();
             Ok(ProcessEnv::new(from_kv, cfg.mask))
         }
-        _ => todo!(),
+        _ => Err(Error::new(EnvLoadError::InvalidSecretFormat)),
     }
 }
 

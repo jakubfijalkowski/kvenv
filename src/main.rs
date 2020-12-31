@@ -1,9 +1,10 @@
 use clap::{Clap, ValueHint};
 use std::path::PathBuf;
+use anyhow::Result;
 
 mod env;
 
-use env::{download_secret, EnvConfig};
+use env::{prepare_env, EnvConfig};
 
 #[derive(Clap, Debug)]
 #[clap(name = "kvenv", about, version, author)]
@@ -30,11 +31,11 @@ struct Cache {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
     match opts.subcommand {
         SubCommand::Cache(c) => {
-            let env = download_secret(c.env).await?;
+            let env = prepare_env(c.env).await?;
             println!("{:?}", env);
         }
     }

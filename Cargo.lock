@@ -724,12 +724,14 @@ dependencies = [
 name = "kvenv"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "azure_core",
  "azure_identity",
  "azure_key_vault",
  "clap",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio",
 ]
 
