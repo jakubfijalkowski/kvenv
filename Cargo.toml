@@ -1,9 +1,14 @@
 [package]
 name = "kvenv"
 description = "Simple utility to run programs with environment downloaded from Azure KeyVault"
-version = "0.1.0"
+categories = ["command-line-utilities"]
+homepage = "https://github.com/jakubfijalkowski/kvenv"
+repository = "https://github.com/jakubfijalkowski/kvenv"
+keywords = ["azure", "keyvault", "env"]
+license = "MIT OR Apache-2.0"
 authors = ["Jakub Fijałkowski <kuba@codinginfinity.me>"]
 edition = "2018"
+version = "0.1.0"
 
 [profile.release]
 lto = true
