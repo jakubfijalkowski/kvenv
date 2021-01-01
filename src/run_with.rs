@@ -41,7 +41,7 @@ fn load_env(path: &PathBuf) -> Result<ProcessEnv> {
 }
 
 pub fn run_with(cfg: RunWith) -> Result<std::convert::Infallible> {
-    let env = load_env(&cfg.env_file)?.to_env();
+    let env = load_env(&cfg.env_file)?.into_env();
 
     if cfg.cleanup {
         fs::remove_file(&cfg.env_file).map_err(RunWithError::CleanupError)?;

@@ -81,10 +81,7 @@ impl OsEnv {
     }
 
     fn should_not_persist(&self) -> bool {
-        match self {
-            OsEnv::Persisted(_) => false,
-            _ => true,
-        }
+        matches!(self, OsEnv::Fresh(_))
     }
 }
 
@@ -128,7 +125,7 @@ impl ProcessEnv {
         serde_json::to_writer(w, self)
     }
 
-    pub fn to_env(self) -> HashMap<String, String> {
+    pub fn into_env(self) -> HashMap<String, String> {
         let mut map: HashMap<_, _> = self.from_env.into_iter().collect();
         map.extend(self.from_kv);
         for m in self.masked {
@@ -175,7 +172,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn to_env() {
+    fn into_env() {
         let env = ProcessEnv {
             from_env: OsEnv::Persisted(vec![
                 ("A".to_string(), "ENV".to_string()),
@@ -191,7 +188,7 @@ mod tests {
             masked: vec!["B".to_string(), "E".to_string()],
         };
 
-        let env = env.to_env();
+        let env = env.into_env();
 
         assert_eq!(Some(&"KV".to_string()), env.get("A"));
         assert_eq!(None, env.get("B"));
