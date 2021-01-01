@@ -32,34 +32,56 @@ pub struct OutputFileConfig {
 pub enum CacheError {
     #[error("cannot load the environment")]
     LoadError(#[from] env::EnvLoadError),
+
     #[error("cannot store the resulting env file")]
-    StoreError(#[from] io::Error),
+    IoError(#[from] io::Error),
+
+    #[error("cannot store the resulting env file - there was a problem during serialization")]
+    SerializationError(#[from] serde_json::Error),
 }
 
 enum OutputFile {
-    Direct(fs::File),
+    Direct(fs::File, PathBuf),
     Temp(NamedTempFile),
 }
 
-fn get_output_file(cfg: &OutputFileConfig) -> Result<OutputFile> {
-    if let Some(f) = &cfg.output_file {
-        let file = fs::File::create(f).map_err(CacheError::StoreError)?;
-        Ok(OutputFile::Direct(file))
+fn get_output_file(cfg: OutputFileConfig) -> Result<OutputFile> {
+    if let Some(f) = cfg.output_file {
+        let file = fs::File::create(&f).map_err(CacheError::IoError)?;
+        Ok(OutputFile::Direct(file, f))
     } else {
         let mut b = tempfile::Builder::new();
         b.prefix("kvenv-").suffix(".json").rand_bytes(5);
-        let file = if let Some(d) = &cfg.output_dir {
+        let file = if let Some(d) = cfg.output_dir {
             b.tempfile_in(d)
         } else {
             b.tempfile()
         };
-        let file = file.map_err(CacheError::StoreError)?;
+        let file = file.map_err(CacheError::IoError)?;
         Ok(OutputFile::Temp(file))
     }
 }
 
+fn store_env(e: env::ProcessEnv, out_file: OutputFile) -> Result<PathBuf> {
+    match out_file {
+        OutputFile::Direct(f, p) => {
+            e.to_writer(f).map_err(CacheError::SerializationError)?;
+            Ok(p)
+        }
+        OutputFile::Temp(mut t) => {
+            e.to_writer(t.as_file_mut()).map_err(CacheError::SerializationError)?;
+            let (_, p) = t.keep().map_err(|e| CacheError::IoError(e.error))?;
+            Ok(p.as_path().to_owned())
+        }
+    }
+}
+
 pub fn run_cache(c: Cache) -> Result<()> {
-    todo!()
+    let cached_env = env::prepare_env(c.env).map_err(CacheError::LoadError)?;
+    let out_file = get_output_file(c.output_file)?;
+    let path = store_env(cached_env, out_file)?;
+    println!("{}", path.display());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -99,27 +121,26 @@ mod tests {
     }
 
     fn assert_direct(cfg: OutputFileConfig) {
-        let f = get_output_file(&cfg).unwrap();
-        assert!(matches!(f, OutputFile::Direct(_)));
+        let file_name = cfg.output_file.clone().unwrap();
+        let f = get_output_file(cfg).unwrap();
         match f {
-            OutputFile::Direct(mut f) => {
+            OutputFile::Direct(mut f, _) => {
                 write!(f, "test").unwrap(); // Try write
                 drop(f);
-                fs::remove_file(cfg.output_file.unwrap()).unwrap();
+                fs::remove_file(file_name).unwrap();
             }
-            _ => unreachable!(),
+            _ => panic!("should return `Direct` case"),
         };
     }
 
     fn assert_temp(cfg: OutputFileConfig) {
-        let f = get_output_file(&cfg).unwrap();
-        assert!(matches!(f, OutputFile::Temp(_)));
+        let f = get_output_file(cfg).unwrap();
         match f {
             OutputFile::Temp(mut f) => {
                 write!(f.as_file_mut(), "test").unwrap(); // Try write
                 drop(f);
             }
-            _ => unreachable!(),
+            _ => panic!("should return `Temp` case"),
         };
     }
 }

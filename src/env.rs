@@ -1,4 +1,3 @@
-use anyhow::{Error, Result};
 use azure_identity::token_credentials::{ClientSecretCredential, TokenCredentialOptions};
 use azure_key_vault::{KeyVaultClient, KeyVaultError};
 use clap::{ArgSettings, Clap};
@@ -16,6 +15,8 @@ pub enum EnvLoadError {
     #[error("cannot deserialize the env file")]
     CannotDeserialize(#[from] serde_json::error::Error),
 }
+
+type Result<T> = std::result::Result<T, EnvLoadError>;
 
 #[derive(Clap, Debug)]
 pub struct EnvConfig {
@@ -117,6 +118,10 @@ impl ProcessEnv {
         serde_json::to_string(self).unwrap()
     }
 
+    pub fn to_writer<W: std::io::Write>(&self, w: W) -> serde_json::Result<()> {
+        serde_json::to_writer(w, self)
+    }
+
     pub fn to_env(self) -> HashMap<String, String> {
         let mut map: HashMap<_, _> = self.from_env.into_iter().collect();
         map.extend(self.from_kv);
@@ -150,7 +155,7 @@ async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
             let from_kv: Vec<_> = m.into_iter().map(|(k, v)| (k, v.to_string())).collect();
             Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
         }
-        _ => Err(Error::new(EnvLoadError::InvalidSecretFormat)),
+        _ => Err(EnvLoadError::InvalidSecretFormat),
     }
 }
 

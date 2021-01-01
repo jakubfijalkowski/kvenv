@@ -4,9 +4,6 @@ use clap::Clap;
 mod cache;
 mod env;
 
-use cache::Cache;
-use env::prepare_env;
-
 #[derive(Clap, Debug)]
 #[clap(name = "kvenv", about, version, author)]
 struct Opts {
@@ -17,14 +14,14 @@ struct Opts {
 #[derive(Clap, Debug)]
 enum SubCommand {
     #[clap()]
-    Cache(Cache),
+    Cache(cache::Cache),
 }
 
 fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
     match opts.subcommand {
         SubCommand::Cache(c) => {
-            println!("{:?}", c);
+            cache::run_cache(c)?;
         }
     }
     Ok(())
