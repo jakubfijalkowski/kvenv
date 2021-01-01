@@ -1,7 +1,6 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use clap::{ArgSettings, Clap, ValueHint};
-use std::process::{Command, ExitStatus};
-use std::{fs, path::PathBuf};
+use std::{ffi::CString, fs, path::PathBuf};
 use thiserror::Error;
 
 use crate::env::ProcessEnv;
@@ -15,9 +14,7 @@ pub enum RunWithError {
     #[error("cannot remove the env file")]
     CleanupError(#[source] std::io::Error),
     #[error("cannot run the specified command")]
-    RunError(#[source] std::io::Error),
-    #[error("the program failed with unknown exit code: {0}")]
-    Failed(ExitStatus),
+    RunError(#[source] nix::Error),
 }
 
 /// Runs the command with the specified argument.
@@ -43,28 +40,25 @@ fn load_env(path: &PathBuf) -> Result<ProcessEnv> {
     Ok(env)
 }
 
-pub fn run_with(cfg: RunWith) -> Result<()> {
+pub fn run_with(cfg: RunWith) -> Result<std::convert::Infallible> {
     let env = load_env(&cfg.env_file)?.to_env();
 
-    let mut child = Command::new(&cfg.command[0])
-        .args(cfg.command.iter().skip(1))
-        .env_clear()
-        .envs(&env)
-        .spawn()
-        .map_err(RunWithError::RunError)?;
-    let result = child.wait().map_err(RunWithError::RunError)?;
-
-    if result.success() && cfg.cleanup {
+    if cfg.cleanup {
         fs::remove_file(&cfg.env_file).map_err(RunWithError::CleanupError)?;
     }
 
-    if !result.success() {
-        if let Some(c) = result.code() {
-            std::process::exit(c);
-        } else {
-            Err(Error::new(RunWithError::Failed(result)))
-        }
-    } else {
-        Ok(())
-    }
+    let c_program = CString::new(&cfg.command[0][..]).unwrap();
+    let c_args: Vec<_> = cfg
+        .command
+        .into_iter()
+        .map(|x| CString::new(x.into_bytes()).unwrap())
+        .collect();
+    let c_env: Vec<_> = env
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .map(|x| CString::new(x.into_bytes()).unwrap())
+        .collect();
+
+    nix::unistd::execvpe(&c_program, &c_args, &c_env).map_err(RunWithError::RunError)?;
+    unreachable!();
 }
