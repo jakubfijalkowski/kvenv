@@ -25,8 +25,6 @@ fn main() -> Result<()> {
     match opts.subcommand {
         SubCommand::Cache(c) => {
             println!("{:?}", c);
-            let env = prepare_env(c.env)?;
-            println!("{:?}", env);
         }
     }
     Ok(())
