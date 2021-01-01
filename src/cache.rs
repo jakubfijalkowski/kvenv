@@ -6,6 +6,7 @@ use thiserror::Error;
 
 use crate::env;
 
+/// Caches the environment variables from KeyVault into local file.
 #[derive(Clap, Debug)]
 pub struct Cache {
     #[clap(flatten)]

@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Clap;
 
 mod cache;
+mod cleanup;
 mod env;
 
 #[derive(Clap, Debug)]
@@ -15,6 +16,8 @@ struct Opts {
 enum SubCommand {
     #[clap()]
     Cache(cache::Cache),
+    #[clap()]
+    Cleanup(cleanup::Cleanup),
 }
 
 fn main() -> Result<()> {
@@ -22,6 +25,9 @@ fn main() -> Result<()> {
     match opts.subcommand {
         SubCommand::Cache(c) => {
             cache::run_cache(c)?;
+        }
+        SubCommand::Cleanup(c) => {
+            cleanup::run_cleanup(c)?;
         }
     }
     Ok(())
