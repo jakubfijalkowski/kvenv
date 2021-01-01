@@ -6,6 +6,18 @@ use thiserror::Error;
 
 use crate::env;
 
+#[derive(Error, Debug)]
+pub enum CacheError {
+    #[error("cannot load the environment")]
+    LoadError(#[from] env::EnvLoadError),
+
+    #[error("cannot store the resulting env file")]
+    IoError(#[from] io::Error),
+
+    #[error("cannot store the resulting env file - there was a problem during serialization")]
+    SerializationError(#[from] serde_json::Error),
+}
+
 /// Caches the environment variables from KeyVault into local file.
 #[derive(Clap, Debug)]
 pub struct Cache {
@@ -27,18 +39,6 @@ pub struct OutputFileConfig {
     /// will be created there.
     #[clap(short = 'd', long, parse(from_os_str), value_hint = ValueHint::DirPath, group = "output")]
     output_dir: Option<PathBuf>,
-}
-
-#[derive(Error, Debug)]
-pub enum CacheError {
-    #[error("cannot load the environment")]
-    LoadError(#[from] env::EnvLoadError),
-
-    #[error("cannot store the resulting env file")]
-    IoError(#[from] io::Error),
-
-    #[error("cannot store the resulting env file - there was a problem during serialization")]
-    SerializationError(#[from] serde_json::Error),
 }
 
 enum OutputFile {
@@ -70,7 +70,8 @@ fn store_env(e: env::ProcessEnv, out_file: OutputFile) -> Result<PathBuf> {
             Ok(p)
         }
         OutputFile::Temp(mut t) => {
-            e.to_writer(t.as_file_mut()).map_err(CacheError::SerializationError)?;
+            e.to_writer(t.as_file_mut())
+                .map_err(CacheError::SerializationError)?;
             let (_, p) = t.keep().map_err(|e| CacheError::IoError(e.error))?;
             Ok(p.as_path().to_owned())
         }

@@ -109,11 +109,17 @@ impl ProcessEnv {
         }
     }
 
+    #[cfg(test)]
     pub fn from_str(s: &str) -> Result<Self> {
         let result = serde_json::from_str(s).map_err(EnvLoadError::CannotDeserialize)?;
         Ok(result)
     }
 
+    pub fn from_reader<R: std::io::Read>(rdr: R) -> serde_json::Result<Self> {
+        serde_json::from_reader(rdr)
+    }
+
+    #[cfg(test)]
     pub fn to_string(&self) -> String {
         serde_json::to_string(self).unwrap()
     }

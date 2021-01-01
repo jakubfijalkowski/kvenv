@@ -4,6 +4,8 @@ use clap::Clap;
 mod cache;
 mod cleanup;
 mod env;
+mod run;
+mod run_with;
 
 #[derive(Clap, Debug)]
 #[clap(name = "kvenv", about, version, author)]
@@ -18,6 +20,8 @@ enum SubCommand {
     Cache(cache::Cache),
     #[clap()]
     Cleanup(cleanup::Cleanup),
+    #[clap()]
+    RunWith(run_with::RunWith),
 }
 
 fn main() -> Result<()> {
@@ -28,6 +32,9 @@ fn main() -> Result<()> {
         }
         SubCommand::Cleanup(c) => {
             cleanup::run_cleanup(c)?;
+        }
+        SubCommand::RunWith(c) => {
+            run_with::run_with(c)?;
         }
     }
     Ok(())
