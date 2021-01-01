@@ -131,7 +131,7 @@ fn can_put_to_env(v: &Value) -> bool {
     v.is_string() || v.is_boolean() || v.is_number() || v.is_null()
 }
 
-pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     let creds = ClientSecretCredential::new(
         cfg.tenant_id,
         cfg.client_id,
@@ -152,6 +152,11 @@ pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv> {
         }
         _ => Err(Error::new(EnvLoadError::InvalidSecretFormat)),
     }
+}
+
+#[tokio::main]
+pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+    download_env(cfg).await
 }
 
 #[cfg(test)]

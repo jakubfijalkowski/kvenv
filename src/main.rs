@@ -1,10 +1,11 @@
-use clap::{Clap, ValueHint};
-use std::path::PathBuf;
 use anyhow::Result;
+use clap::Clap;
 
+mod cache;
 mod env;
 
-use env::{prepare_env, EnvConfig};
+use cache::Cache;
+use env::prepare_env;
 
 #[derive(Clap, Debug)]
 #[clap(name = "kvenv", about, version, author)]
@@ -19,23 +20,12 @@ enum SubCommand {
     Cache(Cache),
 }
 
-#[derive(Clap, Debug)]
-struct Cache {
-    #[clap(flatten)]
-    env: EnvConfig,
-
-    /// The output file where cached configuration will be saved. Defaults to random temporary file
-    /// if not specified.
-    #[clap(short, long, parse(from_os_str), value_hint = ValueHint::FilePath)]
-    output: Option<PathBuf>,
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
     match opts.subcommand {
         SubCommand::Cache(c) => {
-            let env = prepare_env(c.env).await?;
+            println!("{:?}", c);
+            let env = prepare_env(c.env)?;
             println!("{:?}", env);
         }
     }
