@@ -75,7 +75,7 @@ jobs:
           KVENV_KEYVAULT_NAME: ${{ secrets.KVENV_KEYVAULT_NAME }}
           KVENV_SECRET_NAME: ${{ secrets.KVENV_SECRET_NAME }}
       - uses: actions-rs/cargo@v1
-        name: "cargo test on Alpine"
+        name: "cargo test on musl"
         with:
           use-cross: true
           command: test

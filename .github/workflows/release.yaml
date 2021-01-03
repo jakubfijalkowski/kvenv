@@ -23,7 +23,7 @@ jobs:
           command: build
           args: --release
       - uses: actions-rs/cargo@v1
-        name: "Build musl-based"
+        name: "Build static image"
         with:
           use-cross: true
           command: build
@@ -47,12 +47,12 @@ jobs:
           asset_path: ./target/release/kvenv
           asset_name: kvenv-glibc
           asset_content_type: application/octet-stream
-      - name: Upload musl-based binary
+      - name: Upload musl-based (static) binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
           asset_path: ./target/x86_64-unknown-linux-musl/release/kvenv
-          asset_name: kvenv-musl
+          asset_name: kvenv-static
           asset_content_type: application/octet-stream
