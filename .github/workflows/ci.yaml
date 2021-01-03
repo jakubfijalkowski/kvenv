@@ -66,3 +66,10 @@ jobs:
         name: "cargo test"
         with:
           command: test
+          args: --features integration-tests
+        env:
+          KVENV_CLIENT_ID: ${{ secrets.KVENV_CLIENT_ID }}
+          KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}
+          KVENV_CLIENT_SECRET: ${{ secrets.KVENV_CLIENT_SECRET }}
+          KVENV_KEYVAULT_NAME: ${{ secrets.KVENV_KEYVAULT_NAME }}
+          KVENV_SECRET_NAME: ${{ secrets.KVENV_SECRET_NAME }}

@@ -4,9 +4,7 @@ kvenv
 `kvenv` is a simple command-line utility written in Rust that allows running arbitrary command with
 a custom environment that is loaded from Azure KeyVault.
 
-Note: the tool is early stage but should be already usable
-
-Linux-only
+Note: the tool is early stage but should be usable already
 
 ## Example usage
 ```sh
@@ -34,9 +32,9 @@ Explanatory post is coming soon.
 - [x] Masking
 - [x] JSON-based env keys
 - [ ] [ASP.NET Core-compatible](https://docs.microsoft.com/en-us/aspnet/core/security/key-vault-configuration?view=aspnetcore-5.0) key format
-- [ ] `run-with` with direct env credentials
+- [x] `run-with` with direct env credentials (a.k.a `run-in`)
 - [ ] Better documentation
-- [ ] Integration tests
+- [x] Integration tests
 
 ## Environment format
 
