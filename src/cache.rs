@@ -79,7 +79,7 @@ fn store_env(e: env::ProcessEnv, out_file: OutputFile) -> Result<PathBuf> {
 }
 
 pub fn run_cache(c: Cache) -> Result<()> {
-    let cached_env = env::prepare_env(c.env).map_err(CacheError::LoadError)?;
+    let cached_env = env::download_env_sync(c.env).map_err(CacheError::LoadError)?;
     let out_file = get_output_file(c.output_file)?;
     let path = store_env(cached_env, out_file)?;
     println!("{}", path.display());

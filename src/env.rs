@@ -98,6 +98,18 @@ impl IntoIterator for OsEnv {
 }
 
 impl ProcessEnv {
+    pub fn fresh(
+        from_env: Vec<(String, String)>,
+        from_kv: Vec<(String, String)>,
+        masked: Vec<String>,
+    ) -> Self {
+        Self {
+            from_env: OsEnv::Fresh(from_env),
+            from_kv,
+            masked,
+        }
+    }
+
     fn new(from_kv: Vec<(String, String)>, masked: Vec<String>, snapshot_env: bool) -> Self {
         Self {
             from_env: OsEnv::new(snapshot_env),
@@ -149,7 +161,7 @@ fn value_as_string(v: Value) -> String {
     }
 }
 
-async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+pub async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     let creds = ClientSecretCredential::new(
         cfg.tenant_id,
         cfg.client_id,
@@ -176,7 +188,7 @@ async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
 }
 
 #[tokio::main]
-pub async fn prepare_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+pub async fn download_env_sync(cfg: EnvConfig) -> Result<ProcessEnv> {
     download_env(cfg).await
 }
 
@@ -277,7 +289,7 @@ mod tests {
             snapshot_env: false,
             mask: vec!["A".to_string()],
         };
-        let proc_env = prepare_env(cfg).unwrap();
+        let proc_env = download_env_sync(cfg).unwrap();
         assert_eq!(vec!["A".to_string()], proc_env.masked);
         assert_eq!(
             vec![("INTEGRATION_TESTS".to_string(), "work".to_string())],
