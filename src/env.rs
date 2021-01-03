@@ -33,11 +33,11 @@ pub struct EnvConfig {
     client_secret: String,
 
     /// The name of Azure KeyVault where the secret lives.
-    #[clap(short, long, env = "KEYVAULT_NAME")]
+    #[clap(short, long, env = "ARM_KEYVAULT_NAME")]
     keyvault_name: String,
 
     /// The name of secret with environment defined.
-    #[clap(short = 'n', long, env = "SECRET_NAME")]
+    #[clap(short = 'n', long, env = "ARM_SECRET_NAME")]
     secret_name: String,
 
     /// If set, `kvenv` will use OS's environment at this point in time.
@@ -139,6 +139,16 @@ fn can_put_to_env(v: &Value) -> bool {
     v.is_string() || v.is_boolean() || v.is_number() || v.is_null()
 }
 
+fn value_as_string(v: Value) -> String {
+    match v {
+        Value::String(s) => s,
+        Value::Bool(b) => format!("{}", b),
+        Value::Number(n) => format!("{}", n),
+        Value::Null => "null".to_string(),
+        _ => panic!("cannot convert"),
+    }
+}
+
 async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     let creds = ClientSecretCredential::new(
         cfg.tenant_id,
@@ -155,7 +165,10 @@ async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     let value: Value = serde_json::from_str(secret)?;
     match value {
         Value::Object(m) if m.iter().all(|(_, v)| can_put_to_env(v)) => {
-            let from_kv: Vec<_> = m.into_iter().map(|(k, v)| (k, v.to_string())).collect();
+            let from_kv: Vec<_> = m
+                .into_iter()
+                .map(|(k, v)| (k, value_as_string(v)))
+                .collect();
             Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
         }
         _ => Err(EnvLoadError::InvalidSecretFormat),
@@ -248,6 +261,27 @@ mod tests {
         assert_eq!(
             std::env::vars().collect::<Vec<_>>(),
             serialized.from_env.into_iter().collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(feature = "integration-tests")]
+    #[test]
+    fn integration_tests() {
+        use std::env;
+        let cfg = EnvConfig {
+            tenant_id: env::var("ARM_TENANT_ID").unwrap(),
+            client_id: env::var("ARM_CLIENT_ID").unwrap(),
+            client_secret: env::var("ARM_CLIENT_SECRET").unwrap(),
+            keyvault_name: env::var("ARM_KEYVAULT_NAME").unwrap(),
+            secret_name: env::var("ARM_SECRET_NAME").unwrap(),
+            snapshot_env: false,
+            mask: vec!["A".to_string()],
+        };
+        let proc_env = prepare_env(cfg).unwrap();
+        assert_eq!(vec!["A".to_string()], proc_env.masked);
+        assert_eq!(
+            vec![("INTEGRATION_TESTS".to_string(), "work".to_string())],
+            proc_env.from_kv
         );
     }
 }
