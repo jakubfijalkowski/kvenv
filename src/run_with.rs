@@ -1,9 +1,10 @@
 use anyhow::Result;
 use clap::{ArgSettings, Clap, ValueHint};
-use std::{ffi::CString, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 use thiserror::Error;
 
 use crate::env::ProcessEnv;
+use crate::run;
 
 #[derive(Error, Debug)]
 pub enum RunWithError {
@@ -14,7 +15,7 @@ pub enum RunWithError {
     #[error("cannot remove the env file")]
     CleanupError(#[source] std::io::Error),
     #[error("cannot run the specified command")]
-    RunError(#[source] nix::Error),
+    RunError(#[source] anyhow::Error),
 }
 
 /// Runs the command with the specified argument.
@@ -41,24 +42,21 @@ fn load_env(path: &PathBuf) -> Result<ProcessEnv> {
 }
 
 pub fn run_with(cfg: RunWith) -> Result<std::convert::Infallible> {
-    let env = load_env(&cfg.env_file)?.into_env();
+    let env = load_env(&cfg.env_file)?;
 
-    if cfg.cleanup {
-        fs::remove_file(&cfg.env_file).map_err(RunWithError::CleanupError)?;
+    let status = run::run_in_env(env, cfg.command)
+        .map_err(|x| anyhow::Error::new(RunWithError::RunError(x)))?;
+    if status.success() {
+        if cfg.cleanup {
+            fs::remove_file(&cfg.env_file).map_err(RunWithError::CleanupError)?;
+        }
+
+        std::process::exit(0)
+    } else {
+        if let Some(code) = status.code() {
+            std::process::exit(code)
+        } else {
+            std::process::exit(-1)
+        }
     }
-
-    let c_program = CString::new(&cfg.command[0][..]).unwrap();
-    let c_args: Vec<_> = cfg
-        .command
-        .into_iter()
-        .map(|x| CString::new(x.into_bytes()).unwrap())
-        .collect();
-    let c_env: Vec<_> = env
-        .iter()
-        .map(|(k, v)| format!("{}={}", k, v))
-        .map(|x| CString::new(x.into_bytes()).unwrap())
-        .collect();
-
-    nix::unistd::execvpe(&c_program, &c_args, &c_env).map_err(RunWithError::RunError)?;
-    unreachable!();
 }
