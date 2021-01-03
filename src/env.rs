@@ -40,7 +40,8 @@ pub struct EnvConfig {
     #[clap(short = 'n', long, env = "KVENV_SECRET_NAME")]
     secret_name: String,
 
-    /// If set, `kvenv` will use OS's environment at this point in time.
+    /// If set, `kvenv` will use OS's environment at the point in time when the environment is
+    /// downloaded.
     #[clap(short = 'e', long)]
     snapshot_env: bool,
 
