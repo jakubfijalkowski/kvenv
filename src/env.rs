@@ -21,23 +21,23 @@ type Result<T> = std::result::Result<T, EnvLoadError>;
 #[derive(Clap, Debug)]
 pub struct EnvConfig {
     /// The tenant id of the service principal used for authorization.
-    #[clap(short, long, env = "ARM_TENANT_ID")]
+    #[clap(short, long, env = "KVENV_TENANT_ID")]
     tenant_id: String,
 
     /// The application id of the service principal used for authorization.
-    #[clap(short = 'c', long, env = "ARM_CLIENT_ID")]
+    #[clap(short = 'c', long, env = "KVENV_CLIENT_ID")]
     client_id: String,
 
     /// The secret of the service principal used for authorization.
-    #[clap(short = 's', long, env = "ARM_CLIENT_SECRET", setting = ArgSettings::HideEnvValues)]
+    #[clap(short = 's', long, env = "KVENV_CLIENT_SECRET", setting = ArgSettings::HideEnvValues)]
     client_secret: String,
 
     /// The name of Azure KeyVault where the secret lives.
-    #[clap(short, long, env = "ARM_KEYVAULT_NAME")]
+    #[clap(short, long, env = "KVENV_KEYVAULT_NAME")]
     keyvault_name: String,
 
     /// The name of secret with environment defined.
-    #[clap(short = 'n', long, env = "ARM_SECRET_NAME")]
+    #[clap(short = 'n', long, env = "KVENV_SECRET_NAME")]
     secret_name: String,
 
     /// If set, `kvenv` will use OS's environment at this point in time.
@@ -282,11 +282,11 @@ mod tests {
     fn integration_tests() {
         use std::env;
         let cfg = EnvConfig {
-            tenant_id: env::var("ARM_TENANT_ID").unwrap(),
-            client_id: env::var("ARM_CLIENT_ID").unwrap(),
-            client_secret: env::var("ARM_CLIENT_SECRET").unwrap(),
-            keyvault_name: env::var("ARM_KEYVAULT_NAME").unwrap(),
-            secret_name: env::var("ARM_SECRET_NAME").unwrap(),
+            tenant_id: env::var("KVENV_TENANT_ID").unwrap(),
+            client_id: env::var("KVENV_CLIENT_ID").unwrap(),
+            client_secret: env::var("KVENV_CLIENT_SECRET").unwrap(),
+            keyvault_name: env::var("KVENV_KEYVAULT_NAME").unwrap(),
+            secret_name: env::var("KVENV_SECRET_NAME").unwrap(),
             snapshot_env: false,
             mask: vec!["A".to_string()],
         };
