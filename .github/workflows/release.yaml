@@ -38,21 +38,21 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: true
           prerelease: false
-      - name: Upload Glibc-based binary
+      - name: Upload x86_64-unknown-linux-gnu binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./target/release/kvenv
-          asset_name: kvenv-glibc
+          asset_name: kvenv-x86_64-unknown-linux-gnu
           asset_content_type: application/octet-stream
-      - name: Upload musl-based (static) binary
+      - name: Upload x86_64-unknown-linux-musl (static) binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./target/x86_64-unknown-linux-musl/release/kvenv
-          asset_name: kvenv-static
+          asset_name: kvenv-x86_64-unknown-linux-musl
           asset_content_type: application/octet-stream

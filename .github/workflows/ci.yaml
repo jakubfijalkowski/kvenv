@@ -55,31 +55,25 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+        - x86_64-unknown-linux-gnu
+        - x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
-          target: x86_64-unknown-linux-musl
+          target: ${{ matrix.target }}
           override: true
       - uses: actions-rs/cargo@v1
         name: "cargo test"
         with:
+          use-cross: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
           command: test
-          args: --features integration-tests
-        env:
-          KVENV_CLIENT_ID: ${{ secrets.KVENV_CLIENT_ID }}
-          KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}
-          KVENV_CLIENT_SECRET: ${{ secrets.KVENV_CLIENT_SECRET }}
-          KVENV_KEYVAULT_NAME: ${{ secrets.KVENV_KEYVAULT_NAME }}
-          KVENV_SECRET_NAME: ${{ secrets.KVENV_SECRET_NAME }}
-      - uses: actions-rs/cargo@v1
-        name: "cargo test on musl"
-        with:
-          use-cross: true
-          command: test
-          args: --features integration-tests --target x86_64-unknown-linux-musl
+          args: --features integration-tests --target ${{ matrix.target }}
         env:
           KVENV_CLIENT_ID: ${{ secrets.KVENV_CLIENT_ID }}
           KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}
