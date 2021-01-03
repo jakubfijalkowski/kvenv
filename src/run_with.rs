@@ -52,11 +52,9 @@ pub fn run_with(cfg: RunWith) -> Result<std::convert::Infallible> {
         }
 
         std::process::exit(0)
+    } else if let Some(code) = status.code() {
+        std::process::exit(code)
     } else {
-        if let Some(code) = status.code() {
-            std::process::exit(code)
-        } else {
-            std::process::exit(-1)
-        }
+        std::process::exit(-1)
     }
 }

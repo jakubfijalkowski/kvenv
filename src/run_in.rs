@@ -32,11 +32,9 @@ pub fn run_in(cfg: RunIn) -> Result<std::convert::Infallible> {
         .map_err(|x| anyhow::Error::new(RunInError::RunError(x)))?;
     if status.success() {
         std::process::exit(0)
+    } else if let Some(code) = status.code() {
+        std::process::exit(code)
     } else {
-        if let Some(code) = status.code() {
-            std::process::exit(code)
-        } else {
-            std::process::exit(-1)
-        }
+        std::process::exit(-1)
     }
 }
