@@ -28,7 +28,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup component add rustfmt
+          components: rustfmt
       - uses: actions-rs/cargo@v1
         name: "cargo fmt"
         with:
@@ -45,7 +45,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup component add clippy
+          components: clippy
       - uses: actions-rs/cargo@v1
         name: "cargo clippy"
         with:
@@ -61,12 +61,25 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          target: x86_64-unknown-linux-musl
           override: true
       - uses: actions-rs/cargo@v1
         name: "cargo test"
         with:
           command: test
           args: --features integration-tests
+        env:
+          KVENV_CLIENT_ID: ${{ secrets.KVENV_CLIENT_ID }}
+          KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}
+          KVENV_CLIENT_SECRET: ${{ secrets.KVENV_CLIENT_SECRET }}
+          KVENV_KEYVAULT_NAME: ${{ secrets.KVENV_KEYVAULT_NAME }}
+          KVENV_SECRET_NAME: ${{ secrets.KVENV_SECRET_NAME }}
+      - uses: actions-rs/cargo@v1
+        name: "cargo test on Alpine"
+        with:
+          use-cross: true
+          command: test
+          args: --features integration-tests --target x86_64-unknown-linux-musl
         env:
           KVENV_CLIENT_ID: ${{ secrets.KVENV_CLIENT_ID }}
           KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}

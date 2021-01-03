@@ -1,0 +1,11 @@
+[target.x86_64-unknown-linux-musl]
+image = "jakubfijalkowski/cross-rust-musl"
+
+[build.env]
+passthrough = [
+    "KVENV_TENANT_ID",
+    "KVENV_CLIENT_ID",
+    "KVENV_CLIENT_SECRET",
+    "KVENV_KEYVAULT_NAME",
+    "KVENV_SECRET_NAME",
+]
