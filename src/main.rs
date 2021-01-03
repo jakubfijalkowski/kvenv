@@ -5,6 +5,7 @@ mod cache;
 mod cleanup;
 mod env;
 mod run;
+mod run_in;
 mod run_with;
 
 #[derive(Clap, Debug)]
@@ -22,6 +23,8 @@ enum SubCommand {
     Cleanup(cleanup::Cleanup),
     #[clap()]
     RunWith(run_with::RunWith),
+    #[clap()]
+    RunIn(run_in::RunIn),
 }
 
 fn main() -> Result<()> {
@@ -35,6 +38,9 @@ fn main() -> Result<()> {
         }
         SubCommand::RunWith(c) => {
             run_with::run_with(c)?;
+        }
+        SubCommand::RunIn(c) => {
+            run_in::run_in(c)?;
         }
     }
     Ok(())

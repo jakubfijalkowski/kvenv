@@ -18,7 +18,7 @@ pub enum RunWithError {
     RunError(#[source] anyhow::Error),
 }
 
-/// Runs the command with the specified argument.
+/// Runs the command with the specified argument using cached environment.
 #[derive(Clap, Debug)]
 #[clap(name = "run-with")]
 pub struct RunWith {
