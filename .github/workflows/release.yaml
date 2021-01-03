@@ -1,0 +1,58 @@
+on:
+  push:
+    tags:
+    - 'v*'
+
+name: Release kvenv
+
+jobs:
+  build-and-release:
+    name: Build and release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+      - uses: actions-rs/cargo@v1
+        name: "Build Glibc-based"
+        with:
+          command: build
+          args: --release
+      - uses: actions-rs/cargo@v1
+        name: "Build musl-based"
+        with:
+          use-cross: true
+          command: build
+          args: --release --target x86_64-unknown-linux-musl
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          prerelease: false
+      - name: Upload Glibc-based binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./target/release/kvenv
+          asset_name: kvenv-glibc
+          asset_content_type: application/octet-stream
+      - name: Upload musl-based binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./target/x86_64-unknown-linux-musl/release/kvenv
+          asset_name: kvenv-musl
+          asset_content_type: application/octet-stream
