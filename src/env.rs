@@ -98,18 +98,6 @@ impl IntoIterator for OsEnv {
 }
 
 impl ProcessEnv {
-    pub fn fresh(
-        from_env: Vec<(String, String)>,
-        from_kv: Vec<(String, String)>,
-        masked: Vec<String>,
-    ) -> Self {
-        Self {
-            from_env: OsEnv::Fresh(from_env),
-            from_kv,
-            masked,
-        }
-    }
-
     fn new(from_kv: Vec<(String, String)>, masked: Vec<String>, snapshot_env: bool) -> Self {
         Self {
             from_env: OsEnv::new(snapshot_env),
@@ -118,19 +106,8 @@ impl ProcessEnv {
         }
     }
 
-    #[cfg(test)]
-    pub fn from_str(s: &str) -> Result<Self> {
-        let result = serde_json::from_str(s).map_err(EnvLoadError::CannotDeserialize)?;
-        Ok(result)
-    }
-
     pub fn from_reader<R: std::io::Read>(rdr: R) -> serde_json::Result<Self> {
         serde_json::from_reader(rdr)
-    }
-
-    #[cfg(test)]
-    pub fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap()
     }
 
     pub fn to_writer<W: std::io::Write>(&self, w: W) -> serde_json::Result<()> {
@@ -144,6 +121,30 @@ impl ProcessEnv {
             map.remove(&m);
         }
         map
+    }
+}
+
+#[cfg(test)]
+impl ProcessEnv {
+    pub fn fresh(
+        from_env: Vec<(String, String)>,
+        from_kv: Vec<(String, String)>,
+        masked: Vec<String>,
+    ) -> Self {
+        Self {
+            from_env: OsEnv::Fresh(from_env),
+            from_kv,
+            masked,
+        }
+    }
+
+    pub fn from_str(s: &str) -> Result<Self> {
+        let result = serde_json::from_str(s).map_err(EnvLoadError::CannotDeserialize)?;
+        Ok(result)
+    }
+
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }
 
