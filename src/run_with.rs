@@ -1,6 +1,9 @@
 use anyhow::Result;
 use clap::{ArgSettings, Clap, ValueHint};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 
 use crate::env::ProcessEnv;
@@ -35,7 +38,7 @@ pub struct RunWith {
     command: Vec<String>,
 }
 
-fn load_env(path: &PathBuf) -> Result<ProcessEnv> {
+fn load_env(path: &Path) -> Result<ProcessEnv> {
     let file = fs::File::open(path).map_err(RunWithError::IoError)?;
     let env = ProcessEnv::from_reader(&file).map_err(RunWithError::LoadError)?;
     Ok(env)

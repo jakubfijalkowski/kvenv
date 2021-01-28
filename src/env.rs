@@ -169,7 +169,7 @@ fn value_as_string(v: Value) -> String {
     }
 }
 
-fn convert_env_name(prefix: &String, name: &String) -> Result<String> {
+fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
     let name = name[prefix.len()..].replace("--", "_");
     let is_valid = |c: char| c.is_ascii_alphanumeric() || c == '_';
     if name.chars().all(is_valid) {
