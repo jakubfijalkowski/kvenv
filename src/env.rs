@@ -1,6 +1,6 @@
 use azure_identity::token_credentials::{ClientSecretCredential, TokenCredentialOptions};
 use azure_key_vault::{KeyVaultClient, KeyVaultError};
-use clap::{ArgSettings, Clap};
+use clap::{ArgGroup, ArgSettings, Clap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -19,6 +19,7 @@ pub enum EnvLoadError {
 type Result<T> = std::result::Result<T, EnvLoadError>;
 
 #[derive(Clap, Debug)]
+#[clap(group = ArgGroup::new("secret").required(true))]
 pub struct EnvConfig {
     /// The tenant id of the service principal used for authorization.
     #[clap(short, long, env = "KVENV_TENANT_ID")]
@@ -36,9 +37,13 @@ pub struct EnvConfig {
     #[clap(short, long, env = "KVENV_KEYVAULT_NAME")]
     keyvault_name: String,
 
-    /// The name of secret with environment defined.
-    #[clap(short = 'n', long, env = "KVENV_SECRET_NAME")]
-    secret_name: String,
+    /// The name of the secret with the environment defined. Cannot be used along `secret-prefix`.
+    #[clap(short = 'n', long, env = "KVENV_SECRET_NAME", group = "secret")]
+    secret_name: Option<String>,
+
+    /// The prefix of secrets with the environment variables. Cannot be used along `secret-name`.
+    #[clap(short = 'p', long, env = "KVENV_SECRET_PREFIX", group = "secret")]
+    secret_prefix: Option<String>,
 
     /// If set, `kvenv` will use OS's environment at the point in time when the environment is
     /// downloaded.
@@ -163,7 +168,17 @@ fn value_as_string(v: Value) -> String {
     }
 }
 
-pub async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+fn convert_env_name(prefix: &String, name: &String) -> Result<String> {
+    let name = name[prefix.len()..].replace("--", "_");
+    let is_valid = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    if name.chars().all(is_valid) {
+        Ok(name)
+    } else {
+        Err(EnvLoadError::InvalidSecretFormat)
+    }
+}
+
+async fn download_env_single(cfg: EnvConfig) -> Result<ProcessEnv> {
     let creds = ClientSecretCredential::new(
         cfg.tenant_id,
         cfg.client_id,
@@ -172,7 +187,7 @@ pub async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     );
     let mut client = KeyVaultClient::new(&creds, &cfg.keyvault_name);
     let secret = client
-        .get_secret(&cfg.secret_name)
+        .get_secret(&cfg.secret_name.unwrap())
         .await
         .map_err(EnvLoadError::CannotLoadSecret)?;
     let secret = secret.value();
@@ -186,6 +201,49 @@ pub async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
             Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
         }
         _ => Err(EnvLoadError::InvalidSecretFormat),
+    }
+}
+
+async fn download_env_prefixed(cfg: EnvConfig) -> Result<ProcessEnv> {
+    let creds = ClientSecretCredential::new(
+        cfg.tenant_id,
+        cfg.client_id,
+        cfg.client_secret,
+        TokenCredentialOptions::default(),
+    );
+    let prefix = cfg.secret_prefix.unwrap();
+    let mut client = KeyVaultClient::new(&creds, &cfg.keyvault_name);
+    let secrets = client
+        .list_secrets()
+        .await
+        .map_err(EnvLoadError::CannotLoadSecret)?;
+    let secrets: Vec<_> = secrets
+        .iter()
+        .filter(|x| x.name().starts_with(&prefix))
+        .collect();
+    let env_names = secrets
+        .iter()
+        .map(|x| convert_env_name(&prefix, x.name()))
+        .collect::<Result<Vec<_>>>()?;
+    let mut env_values = Vec::with_capacity(env_names.len());
+    for s in secrets.iter() {
+        let env_value = client
+            .get_secret(s.name())
+            .await
+            .map_err(EnvLoadError::CannotLoadSecret)?;
+        env_values.push(env_value.value().to_string());
+    }
+    let from_kv = env_names.into_iter().zip(env_values.into_iter()).collect();
+    Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
+}
+
+pub async fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+    if cfg.secret_name.is_some() {
+        download_env_single(cfg).await
+    } else if cfg.secret_prefix.is_some() {
+        download_env_prefixed(cfg).await
+    } else {
+        unreachable!()
     }
 }
 
@@ -280,14 +338,15 @@ mod tests {
 
     #[cfg(feature = "integration-tests")]
     #[test]
-    fn integration_tests() {
+    fn integration_tests_single_value() {
         use std::env;
         let cfg = EnvConfig {
             tenant_id: env::var("KVENV_TENANT_ID").unwrap(),
             client_id: env::var("KVENV_CLIENT_ID").unwrap(),
             client_secret: env::var("KVENV_CLIENT_SECRET").unwrap(),
             keyvault_name: env::var("KVENV_KEYVAULT_NAME").unwrap(),
-            secret_name: env::var("KVENV_SECRET_NAME").unwrap(),
+            secret_name: Some(env::var("KVENV_SECRET_NAME").unwrap()),
+            secret_prefix: None,
             snapshot_env: false,
             mask: vec!["A".to_string()],
         };
@@ -295,6 +354,32 @@ mod tests {
         assert_eq!(vec!["A".to_string()], proc_env.masked);
         assert_eq!(
             vec![("INTEGRATION_TESTS".to_string(), "work".to_string())],
+            proc_env.from_kv
+        );
+    }
+
+    #[cfg(feature = "integration-tests")]
+    #[test]
+    fn integration_tests_prefixed() {
+        use std::env;
+        let cfg = EnvConfig {
+            tenant_id: env::var("KVENV_TENANT_ID").unwrap(),
+            client_id: env::var("KVENV_CLIENT_ID").unwrap(),
+            client_secret: env::var("KVENV_CLIENT_SECRET").unwrap(),
+            keyvault_name: env::var("KVENV_KEYVAULT_NAME").unwrap(),
+            secret_name: None,
+            secret_prefix: Some(env::var("KVENV_SECRET_PREFIX").unwrap()),
+            snapshot_env: false,
+            mask: vec!["A".to_string()],
+        };
+        let proc_env = download_env_sync(cfg).unwrap();
+        assert_eq!(vec!["A".to_string()], proc_env.masked);
+        assert_eq!(
+            vec![
+                ("INTEGRATION_TESTS_A".to_string(), "work1".to_string()),
+                ("INTEGRATION_TESTS_B".to_string(), "work2".to_string()),
+                ("INTEGRATION_TESTS_C".to_string(), "work3".to_string())
+            ],
             proc_env.from_kv
         );
     }
