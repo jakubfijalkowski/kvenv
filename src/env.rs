@@ -1,6 +1,7 @@
 use azure_identity::token_credentials::{ClientSecretCredential, TokenCredentialOptions};
 use azure_key_vault::{KeyVaultClient, KeyVaultError};
 use clap::{ArgGroup, ArgSettings, Clap};
+use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -211,8 +212,9 @@ async fn download_env_prefixed(cfg: EnvConfig) -> Result<ProcessEnv> {
         cfg.client_secret,
         TokenCredentialOptions::default(),
     );
+    let kv_name = cfg.keyvault_name;
     let prefix = cfg.secret_prefix.unwrap();
-    let mut client = KeyVaultClient::new(&creds, &cfg.keyvault_name);
+    let mut client = KeyVaultClient::new(&creds, &kv_name);
     let secrets = client
         .list_secrets()
         .await
@@ -225,14 +227,19 @@ async fn download_env_prefixed(cfg: EnvConfig) -> Result<ProcessEnv> {
         .iter()
         .map(|x| convert_env_name(&prefix, x.name()))
         .collect::<Result<Vec<_>>>()?;
-    let mut env_values = Vec::with_capacity(env_names.len());
-    for s in secrets.iter() {
-        let env_value = client
-            .get_secret(s.name())
-            .await
-            .map_err(EnvLoadError::CannotLoadSecret)?;
-        env_values.push(env_value.value().to_string());
-    }
+    let env_values = secrets.iter().map(|s| {
+        let mut client = KeyVaultClient::new(&creds, &kv_name);
+        async move {
+            client
+                .get_secret(s.name())
+                .await
+                .map_err(EnvLoadError::CannotLoadSecret)
+        }
+    });
+    let env_values = try_join_all(env_values)
+        .await?
+        .into_iter()
+        .map(|x| x.value().to_owned());
     let from_kv = env_names.into_iter().zip(env_values.into_iter()).collect();
     Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
 }

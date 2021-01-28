@@ -704,6 +704,7 @@ dependencies = [
  "azure_identity",
  "azure_key_vault",
  "clap",
+ "futures",
  "serde",
  "serde_json",
  "tempfile",
