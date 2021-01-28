@@ -31,7 +31,7 @@ Explanatory post is coming soon.
 
 - [x] Masking
 - [x] JSON-based env keys
-- [ ] [ASP.NET Core-compatible](https://docs.microsoft.com/en-us/aspnet/core/security/key-vault-configuration?view=aspnetcore-5.0) key format
+- [x] [ASP.NET Core-compatible](https://docs.microsoft.com/en-us/aspnet/core/security/key-vault-configuration?view=aspnetcore-5.0) key format
 - [x] `run-with` with direct env credentials (a.k.a `run-in`)
 - [ ] Better documentation
 - [x] Integration tests
