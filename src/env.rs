@@ -170,9 +170,15 @@ fn value_as_string(v: Value) -> String {
 }
 
 fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
-    let name = name[prefix.len()..].replace("--", "_");
+    let name = name[prefix.len()..].replace("-", "_");
     let is_valid = |c: char| c.is_ascii_alphanumeric() || c == '_';
-    if name.chars().all(is_valid) {
+    if !name.is_empty()
+        && name.chars().all(is_valid)
+        && name
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_ascii_alphabetic())
+    {
         Ok(name)
     } else {
         Err(EnvLoadError::InvalidSecretFormat)
@@ -261,31 +267,102 @@ pub async fn download_env_sync(cfg: EnvConfig) -> Result<ProcessEnv> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
+
+    macro_rules! env {
+        ($a:expr) => {
+            $a.to_string()
+        };
+        ($a:expr, $b:expr) => {
+            ($a.to_string(), $b.to_string())
+        };
+    }
+
+    #[test]
+    fn value_as_string_for_normal_values() {
+        assert_eq!("abcd", value_as_string(json!("abcd")));
+        assert_eq!("12", value_as_string(json!(12)));
+        assert_eq!("12.123", value_as_string(json!(12.123)));
+        assert_eq!("null", value_as_string(json!(null)));
+        assert_eq!("false", value_as_string(json!(false)));
+        assert_eq!("true", value_as_string(json!(true)));
+    }
+
+    #[test]
+    #[should_panic]
+    fn value_as_string_panics_for_object() {
+        value_as_string(json!({ "a": 123 }));
+    }
+
+    #[test]
+    #[should_panic]
+    fn value_as_string_panics_for_array() {
+        value_as_string(json!([1, 2]));
+    }
+
+    #[test]
+    fn convert_env_name_converts_names() {
+        macro_rules! assert_convert {
+            ($a:expr, $b:expr) => {
+                assert_convert!("", $a, $b);
+            };
+            ($prefix:expr, $a:expr, $b:expr) => {
+                assert_eq!($a, convert_env_name($prefix, $b).unwrap());
+            };
+        }
+
+        assert_convert!("abc", "abc");
+        assert_convert!("abc123", "abc123");
+        assert_convert!("abc_123", "abc-123");
+        assert_convert!("abc__123", "abc--123");
+        assert_convert!("abc_123", "abc_123");
+
+        assert_convert!("zxc", "abc", "zxcabc");
+        assert_convert!("zxc", "abc", "abcabc");
+    }
+
+    #[test]
+    fn convert_env_name_invalid() {
+        macro_rules! assert_fail {
+            ($a:expr) => {
+                assert_fail!("", $a);
+            };
+            ($prefix:expr, $a:expr) => {
+                assert!(matches!(
+                    convert_env_name($prefix, $a),
+                    Err(EnvLoadError::InvalidSecretFormat),
+                ));
+            };
+        }
+
+        assert_fail!("");
+        assert_fail!("!");
+        assert_fail!("abc!");
+        assert_fail!("123abc");
+        assert_fail!("abc", "abc");
+    }
 
     #[test]
     fn into_env() {
         let env = ProcessEnv {
-            from_env: OsEnv::Persisted(vec![
-                ("A".to_string(), "ENV".to_string()),
-                ("B".to_string(), "ENV".to_string()),
-                ("C".to_string(), "ENV".to_string()),
-            ]),
+            from_env: OsEnv::Persisted(vec![env!("A", "ENV"), env!("B", "ENV"), env!("C", "ENV")]),
             from_kv: vec![
-                ("A".to_string(), "KV".to_string()),
-                ("B".to_string(), "KV".to_string()),
-                ("D".to_string(), "KV".to_string()),
-                ("E".to_string(), "KV".to_string()),
+                env!("A", "KV"),
+                env!("B", "KV"),
+                env!("D", "KV"),
+                env!("E", "KV"),
             ],
-            masked: vec!["B".to_string(), "E".to_string()],
+            masked: vec![env!("B"), env!("E")],
         };
 
         let env = env.into_env();
 
-        assert_eq!(Some(&"KV".to_string()), env.get("A"));
+        assert_eq!(Some(&env!("KV")), env.get("A"));
         assert_eq!(None, env.get("B"));
-        assert_eq!(Some(&"ENV".to_string()), env.get("C"));
-        assert_eq!(Some(&"KV".to_string()), env.get("D"));
+        assert_eq!(Some(&env!("ENV")), env.get("C"));
+        assert_eq!(Some(&env!("KV")), env.get("D"));
         assert_eq!(None, env.get("E"));
     }
 
@@ -302,9 +379,9 @@ mod tests {
             ProcessEnv::from_str(&serialized).unwrap()
         };
 
-        let env = vec![("A".to_string(), "B".to_string())];
-        let kv = vec![("C".to_string(), "D".to_string())];
-        let masked = vec!["E".to_string()];
+        let env = vec![env!("A", "B")];
+        let kv = vec![env!("C", "D")];
+        let masked = vec![env!("E")];
         let proc_env = persisted(env.clone(), kv.clone(), masked.clone());
 
         let serialized = test(&proc_env);
@@ -318,7 +395,7 @@ mod tests {
     #[test]
     fn serialization_fresh() {
         let fresh = |kv, masked| ProcessEnv {
-            from_env: OsEnv::Fresh(vec![("Ignore".to_string(), "me".to_string())]),
+            from_env: OsEnv::Fresh(vec![env!("Ignore", "me")]),
             from_kv: kv,
             masked,
         };
@@ -328,8 +405,8 @@ mod tests {
             ProcessEnv::from_str(&serialized).unwrap()
         };
 
-        let kv = vec![("C".to_string(), "D".to_string())];
-        let masked = vec!["E".to_string()];
+        let kv = vec![env!("C", "D")];
+        let masked = vec![env!("E")];
         let proc_env = fresh(kv.clone(), masked.clone());
 
         let serialized = test(&proc_env);
@@ -346,46 +423,43 @@ mod tests {
     #[cfg(feature = "integration-tests")]
     #[test]
     fn integration_tests_single_value() {
-        use std::env;
+        use std::env::var as env_var;
         let cfg = EnvConfig {
-            tenant_id: env::var("KVENV_TENANT_ID").unwrap(),
-            client_id: env::var("KVENV_CLIENT_ID").unwrap(),
-            client_secret: env::var("KVENV_CLIENT_SECRET").unwrap(),
-            keyvault_name: env::var("KVENV_KEYVAULT_NAME").unwrap(),
-            secret_name: Some(env::var("KVENV_SECRET_NAME").unwrap()),
+            tenant_id: env_var("KVENV_TENANT_ID").unwrap(),
+            client_id: env_var("KVENV_CLIENT_ID").unwrap(),
+            client_secret: env_var("KVENV_CLIENT_SECRET").unwrap(),
+            keyvault_name: env_var("KVENV_KEYVAULT_NAME").unwrap(),
+            secret_name: Some(env_var("KVENV_SECRET_NAME").unwrap()),
             secret_prefix: None,
             snapshot_env: false,
-            mask: vec!["A".to_string()],
+            mask: vec![env!("A")],
         };
         let proc_env = download_env_sync(cfg).unwrap();
-        assert_eq!(vec!["A".to_string()], proc_env.masked);
-        assert_eq!(
-            vec![("INTEGRATION_TESTS".to_string(), "work".to_string())],
-            proc_env.from_kv
-        );
+        assert_eq!(vec![env!("A")], proc_env.masked);
+        assert_eq!(vec![env!("INTEGRATION_TESTS", "work")], proc_env.from_kv);
     }
 
     #[cfg(feature = "integration-tests")]
     #[test]
     fn integration_tests_prefixed() {
-        use std::env;
+        use std::env::var as env_var;
         let cfg = EnvConfig {
-            tenant_id: env::var("KVENV_TENANT_ID").unwrap(),
-            client_id: env::var("KVENV_CLIENT_ID").unwrap(),
-            client_secret: env::var("KVENV_CLIENT_SECRET").unwrap(),
-            keyvault_name: env::var("KVENV_KEYVAULT_NAME").unwrap(),
+            tenant_id: env_var("KVENV_TENANT_ID").unwrap(),
+            client_id: env_var("KVENV_CLIENT_ID").unwrap(),
+            client_secret: env_var("KVENV_CLIENT_SECRET").unwrap(),
+            keyvault_name: env_var("KVENV_KEYVAULT_NAME").unwrap(),
             secret_name: None,
-            secret_prefix: Some(env::var("KVENV_SECRET_PREFIX").unwrap()),
+            secret_prefix: Some(env_var("KVENV_SECRET_PREFIX").unwrap()),
             snapshot_env: false,
-            mask: vec!["A".to_string()],
+            mask: vec![env!("A")],
         };
         let proc_env = download_env_sync(cfg).unwrap();
-        assert_eq!(vec!["A".to_string()], proc_env.masked);
+        assert_eq!(vec![env!("A")], proc_env.masked);
         assert_eq!(
             vec![
-                ("INTEGRATION_TESTS_A".to_string(), "work1".to_string()),
-                ("INTEGRATION_TESTS_B".to_string(), "work2".to_string()),
-                ("INTEGRATION_TESTS_C".to_string(), "work3".to_string())
+                env!("INTEGRATION_TESTS_A", "work1"),
+                env!("INTEGRATION_TESTS_B", "work2"),
+                env!("INTEGRATION_TESTS_C", "work3")
             ],
             proc_env.from_kv
         );

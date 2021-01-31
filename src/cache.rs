@@ -86,6 +86,7 @@ pub fn run_cache(c: Cache) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "integration-tests")]
 #[cfg(test)]
 mod tests {
     use super::*;
