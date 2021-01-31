@@ -17,7 +17,7 @@ $ kvenv cache \
 /tmp/kvenv-xxxxx.json
 $ kvenv run-with --env-file /tmp/kvenv-xxxxx.json -- env
 ...
-$ kvenv cleanup /tmp/kvenv-xxxxx.json
+$ rm /tmp/kvenv-xxxxx.json
 ```
 
 The main usage is in CI/CD pipelines - if your tool of choice does not support convenient,
