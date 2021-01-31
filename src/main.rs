@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::Clap;
 
 mod cache;
-mod cleanup;
 mod env;
 mod run;
 mod run_in;
@@ -20,8 +19,6 @@ enum SubCommand {
     #[clap()]
     Cache(cache::Cache),
     #[clap()]
-    Cleanup(cleanup::Cleanup),
-    #[clap()]
     RunWith(run_with::RunWith),
     #[clap()]
     RunIn(run_in::RunIn),
@@ -32,9 +29,6 @@ fn main() -> Result<()> {
     match opts.subcommand {
         SubCommand::Cache(c) => {
             cache::run_cache(c)?;
-        }
-        SubCommand::Cleanup(c) => {
-            cleanup::run_cleanup(c)?;
         }
         SubCommand::RunWith(c) => {
             run_with::run_with(c)?;
