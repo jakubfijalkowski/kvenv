@@ -155,22 +155,7 @@ impl ProcessEnv {
     }
 }
 
-fn can_put_to_env(v: &Value) -> bool {
-    v.is_string() || v.is_boolean() || v.is_number() || v.is_null()
-}
-
-fn value_as_string(v: Value) -> String {
-    match v {
-        Value::String(s) => s,
-        Value::Bool(b) => format!("{}", b),
-        Value::Number(n) => format!("{}", n),
-        Value::Null => "null".to_string(),
-        _ => panic!("cannot convert"),
-    }
-}
-
-fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
-    let name = name[prefix.len()..].replace("-", "_");
+fn as_valid_env_name(name: String) -> Result<String> {
     let is_valid = |c: char| c.is_ascii_alphanumeric() || c == '_';
     if !name.is_empty()
         && name.chars().all(is_valid)
@@ -182,6 +167,31 @@ fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
         Ok(name)
     } else {
         Err(EnvLoadError::InvalidSecretFormat)
+    }
+}
+
+fn value_as_string(v: Value) -> Result<String> {
+    match v {
+        Value::String(s) => Ok(s),
+        Value::Bool(b) => Ok(format!("{}", b)),
+        Value::Number(n) => Ok(format!("{}", n)),
+        Value::Null => Ok("null".to_string()),
+        _ => Err(EnvLoadError::InvalidSecretFormat),
+    }
+}
+
+fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
+    let name = name[prefix.len()..].replace("-", "_");
+    as_valid_env_name(name)
+}
+
+fn decode_env_from_json(value: Value) -> Result<Vec<(String, String)>> {
+    match value {
+        Value::Object(m) => m
+            .into_iter()
+            .map(|(k, v)| Ok((as_valid_env_name(k)?, value_as_string(v)?)))
+            .collect(),
+        _ => Err(EnvLoadError::InvalidSecretFormat),
     }
 }
 
@@ -197,18 +207,9 @@ async fn download_env_single(cfg: EnvConfig) -> Result<ProcessEnv> {
         .get_secret(&cfg.secret_name.unwrap())
         .await
         .map_err(EnvLoadError::CannotLoadSecret)?;
-    let secret = secret.value();
-    let value: Value = serde_json::from_str(secret)?;
-    match value {
-        Value::Object(m) if m.iter().all(|(_, v)| can_put_to_env(v)) => {
-            let from_kv: Vec<_> = m
-                .into_iter()
-                .map(|(k, v)| (k, value_as_string(v)))
-                .collect();
-            Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
-        }
-        _ => Err(EnvLoadError::InvalidSecretFormat),
-    }
+    let value: Value = serde_json::from_str(secret.value())?;
+    let from_kv = decode_env_from_json(value)?;
+    Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
 }
 
 async fn download_env_prefixed(cfg: EnvConfig) -> Result<ProcessEnv> {
@@ -280,26 +281,115 @@ mod tests {
         };
     }
 
+    macro_rules! assert_invalid_secret {
+        ($a:expr) => {
+            assert!(matches!($a, Err(EnvLoadError::InvalidSecretFormat)));
+        };
+    }
+
+    #[test]
+    fn as_valid_env_name_correct() {
+        macro_rules! assert_convert {
+            ($a:expr) => {
+                assert_eq!($a, as_valid_env_name($a.to_string()).unwrap());
+            };
+        }
+
+        assert_convert!("abc");
+        assert_convert!("abc123");
+        assert_convert!("ab_12_ab");
+    }
+
+    #[test]
+    fn as_valid_env_name_invalid() {
+        macro_rules! assert_fail {
+            ($a:expr) => {
+                assert_invalid_secret!(as_valid_env_name($a.to_string()));
+            };
+        }
+
+        assert_fail!("");
+        assert_fail!("123abc");
+        assert_fail!("ab!");
+        assert_fail!("ab-ab");
+    }
+
     #[test]
     fn value_as_string_for_normal_values() {
-        assert_eq!("abcd", value_as_string(json!("abcd")));
-        assert_eq!("12", value_as_string(json!(12)));
-        assert_eq!("12.123", value_as_string(json!(12.123)));
-        assert_eq!("null", value_as_string(json!(null)));
-        assert_eq!("false", value_as_string(json!(false)));
-        assert_eq!("true", value_as_string(json!(true)));
+        macro_rules! assert_convert {
+            ($a:expr, $b:expr) => {
+                assert_eq!($a, value_as_string($b).unwrap());
+            };
+        }
+
+        assert_convert!("abcd", json!("abcd"));
+        assert_convert!("12", json!(12));
+        assert_convert!("12.123", json!(12.123));
+        assert_convert!("null", json!(null));
+        assert_convert!("false", json!(false));
+        assert_convert!("true", json!(true));
     }
 
     #[test]
-    #[should_panic]
-    fn value_as_string_panics_for_object() {
-        value_as_string(json!({ "a": 123 }));
+    fn value_as_string_for_arrays_and_objects() {
+        macro_rules! assert_fail {
+            ($a:expr) => {
+                assert_invalid_secret!(value_as_string($a));
+            };
+        }
+
+        assert_fail!(json!({ "a": 123 }));
+        assert_fail!(json!([1, 2]));
     }
 
     #[test]
-    #[should_panic]
-    fn value_as_string_panics_for_array() {
-        value_as_string(json!([1, 2]));
+    fn decode_env_from_json_correct_values() {
+        // Overkill, but looks quite awesome :)
+        macro_rules! assert_decode {
+            ($a:expr, $($name:ident = $value:expr),*) => {
+                #[allow(unused_variables, unused_mut)]
+                {
+                    let decoded = decode_env_from_json($a).unwrap();
+                    let len = decoded.len();
+                    let mapped = decoded.into_iter().collect::<HashMap<_, _>>();
+                    let mut total = 0;
+                    $(
+                        total += 1;
+                        let name = stringify!($name);
+                        let value = $value.to_string();
+                        assert_eq!(Some(&value), mapped.get(&name[..]));
+                    )*
+                    assert_eq!(total, len);
+                }
+            };
+        }
+
+        assert_decode!(json!({}),);
+        assert_decode!(json!({"a": 1}), a = "1");
+        assert_decode!(json!({"a": 1, "b": true}), a = "1", b = "true");
+        assert_decode!(
+            json!({"a": 1, "b": true, "c": "test"}),
+            a = "1",
+            b = "true",
+            c = "test"
+        );
+    }
+
+    #[test]
+    fn decode_env_from_json_invalid() {
+        macro_rules! assert_fail {
+            ($a:expr) => {
+                assert_invalid_secret!(decode_env_from_json($a));
+            };
+        }
+
+        assert_fail!(json!([1, 2]));
+        assert_fail!(json!("test"));
+        assert_fail!(json!(false));
+        assert_fail!(json!(true));
+        assert_fail!(json!({"a!": 1}));
+        assert_fail!(json!({"1a": 1}));
+        assert_fail!(json!({"a": {"b": 1}}));
     }
 
     #[test]
@@ -330,10 +420,7 @@ mod tests {
                 assert_fail!("", $a);
             };
             ($prefix:expr, $a:expr) => {
-                assert!(matches!(
-                    convert_env_name($prefix, $a),
-                    Err(EnvLoadError::InvalidSecretFormat),
-                ));
+                assert_invalid_secret!(convert_env_name($prefix, $a));
             };
         }
 
