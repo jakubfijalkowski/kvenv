@@ -20,6 +20,19 @@ $ kvenv run-with --env-file /tmp/kvenv-xxxxx.json -- env
 $ rm /tmp/kvenv-xxxxx.json
 ```
 
+or
+
+```sh
+$ kvenv run-in \
+    --tenant-id e96760c2-66ca-430e-9ecc-4556eeee59d7 \ # Tenant ID
+    --client-id 54bdd66e-b650-4ad8-8a37-2c135cd5f5ff \ # Application (Client) ID
+    --client-secret appsecret \ # The 'password' or 'secret' of the application
+    --keyvault-name example-keyvault \ # The name of the keyvault where the secret is stored (and app has access)
+    --secret-name test \
+    -- env
+...
+```
+
 The main usage is in CI/CD pipelines - if your tool of choice does not support convenient,
 per-project secrets (or the functionality does not support multitenancy) management, you might store
 the secrets in KV and then subsequently load it using the `kvenv` tools, without exposing raw
