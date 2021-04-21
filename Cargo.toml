@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 authors = ["Jakub Fijałkowski <kuba@codinginfinity.me>"]
 edition = "2018"
 version = "0.1.0"
+resolver = "2"
 
 [profile.release]
 lto = true

@@ -1,5 +1,5 @@
 use azure_identity::token_credentials::{ClientSecretCredential, TokenCredentialOptions};
-use azure_key_vault::{KeyVaultClient, KeyVaultError};
+use azure_key_vault::{KeyClient, KeyVaultError};
 use clap::{ArgGroup, ArgSettings, Clap};
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum EnvLoadError {
+    #[error("configuration error")]
+    ConfigurationError(anyhow::Error),
     #[error("cannot load secret from keyvault")]
     CannotLoadSecret(#[from] KeyVaultError),
     #[error("invalid format - the object is not a map or not all keys are strings")]
@@ -195,6 +197,10 @@ fn decode_env_from_json(value: Value) -> Result<Vec<(String, String)>> {
     }
 }
 
+fn get_kv_address(name: &str) -> String {
+    format!("{0}.vault.azure.net", name)
+}
+
 async fn download_env_single(cfg: EnvConfig) -> Result<ProcessEnv> {
     let creds = ClientSecretCredential::new(
         cfg.tenant_id,
@@ -202,7 +208,8 @@ async fn download_env_single(cfg: EnvConfig) -> Result<ProcessEnv> {
         cfg.client_secret,
         TokenCredentialOptions::default(),
     );
-    let mut client = KeyVaultClient::new(&creds, &cfg.keyvault_name);
+    let mut client = KeyClient::new(&get_kv_address(&cfg.keyvault_name), &creds)
+        .map_err(EnvLoadError::ConfigurationError)?;
     let secret = client
         .get_secret(&cfg.secret_name.unwrap())
         .await
@@ -221,7 +228,8 @@ async fn download_env_prefixed(cfg: EnvConfig) -> Result<ProcessEnv> {
     );
     let kv_name = cfg.keyvault_name;
     let prefix = cfg.secret_prefix.unwrap();
-    let mut client = KeyVaultClient::new(&creds, &kv_name);
+    let mut client = KeyClient::new(&get_kv_address(&kv_name), &creds)
+        .map_err(EnvLoadError::ConfigurationError)?;
     let secrets = client
         .list_secrets()
         .await
@@ -235,9 +243,10 @@ async fn download_env_prefixed(cfg: EnvConfig) -> Result<ProcessEnv> {
         .map(|x| convert_env_name(&prefix, x.name()))
         .collect::<Result<Vec<_>>>()?;
     let env_values = secrets.iter().map(|s| {
-        let mut client = KeyVaultClient::new(&creds, &kv_name);
+        let client = KeyClient::new(&get_kv_address(&kv_name), &creds);
         async move {
             client
+                .map_err(EnvLoadError::ConfigurationError)?
                 .get_secret(s.name())
                 .await
                 .map_err(EnvLoadError::CannotLoadSecret)
