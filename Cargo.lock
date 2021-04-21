@@ -72,7 +72,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "azure_core"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#8530b14828869e93f200894c7f79b6be3a3ed5e3"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git#8d275a30e7cd857e38809c651516fc21e51c5ba0"
 dependencies = [
  "RustyXML",
  "async-trait",
@@ -99,7 +99,7 @@ dependencies = [
 [[package]]
 name = "azure_identity"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#8530b14828869e93f200894c7f79b6be3a3ed5e3"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git#8d275a30e7cd857e38809c651516fc21e51c5ba0"
 dependencies = [
  "async-timer",
  "async-trait",
@@ -118,7 +118,7 @@ dependencies = [
 [[package]]
 name = "azure_key_vault"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#8530b14828869e93f200894c7f79b6be3a3ed5e3"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git#8d275a30e7cd857e38809c651516fc21e51c5ba0"
 dependencies = [
  "anyhow",
  "azure_core",
