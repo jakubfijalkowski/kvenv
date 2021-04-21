@@ -198,7 +198,7 @@ fn decode_env_from_json(value: Value) -> Result<Vec<(String, String)>> {
 }
 
 fn get_kv_address(name: &str) -> String {
-    format!("{0}.vault.azure.net", name)
+    format!("https://{}.vault.azure.net", name)
 }
 
 async fn download_env_single(cfg: EnvConfig) -> Result<ProcessEnv> {
@@ -514,6 +514,11 @@ mod tests {
             std::env::vars().collect::<Vec<_>>(),
             serialized.from_env.into_iter().collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn kv_address() {
+        assert_eq!("https://test.vault.azure.net", get_kv_address("test"));
     }
 
     #[cfg(feature = "integration-tests")]
