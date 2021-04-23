@@ -2,13 +2,13 @@ use anyhow::Result;
 use clap::{ArgSettings, Clap};
 use thiserror::Error;
 
-use crate::env::{download_env_sync, EnvConfig, EnvLoadError};
+use crate::env::{download_env, EnvConfig};
 use crate::run;
 
 #[derive(Error, Debug)]
 pub enum RunInError {
     #[error("cannot load environment")]
-    LoadError(#[from] EnvLoadError),
+    LoadError(#[source] anyhow::Error),
     #[error("cannot run the specified command")]
     RunError(#[source] anyhow::Error),
 }
@@ -26,7 +26,7 @@ pub struct RunIn {
 }
 
 pub fn run_in(cfg: RunIn) -> Result<std::convert::Infallible> {
-    let env = download_env_sync(cfg.env).map_err(RunInError::LoadError)?;
+    let env = download_env(cfg.env).map_err(RunInError::LoadError)?;
 
     let status = run::run_in_env(env, cfg.command)
         .map_err(|x| anyhow::Error::new(RunInError::RunError(x)))?;

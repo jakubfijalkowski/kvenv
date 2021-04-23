@@ -39,3 +39,22 @@ fn main() -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Opts;
+    use clap::{Clap, ErrorKind};
+
+    #[test]
+    fn can_clap_help() {
+        assert_correct(&["kvenv", "cache", "--help"]);
+        assert_correct(&["kvenv", "run-in", "--help"]);
+        assert_correct(&["kvenv", "run-with", "--help"]);
+    }
+
+    fn assert_correct(args: &[&str]) {
+        let opts = Opts::try_parse_from(args);
+        let err = opts.unwrap_err();
+        assert_eq!(ErrorKind::DisplayHelp, err.kind);
+    }
+}
