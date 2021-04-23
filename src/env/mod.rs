@@ -45,13 +45,13 @@ pub struct EnvConfig {
 }
 
 impl EnvConfig {
-    fn to_run_config(self) -> (Box<dyn VaultConfig>, DataConfig) {
+    fn into_run_config(self) -> (Box<dyn VaultConfig>, DataConfig) {
         (Box::new(self.azure), self.data)
     }
 }
 
 pub fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
-    let (vault, cfg) = cfg.to_run_config();
+    let (vault, cfg) = cfg.into_run_config();
     let from_kv = if cfg.secret_name.is_some() {
         vault.download_json(&cfg.secret_name.unwrap())?
     } else if cfg.secret_prefix.is_some() {

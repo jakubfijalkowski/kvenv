@@ -1,4 +1,3 @@
-use azure_core::TokenCredential;
 use azure_identity::token_credentials::{
     AzureCliCredential, ClientSecretCredential, DefaultCredential, ManagedIdentityCredential,
     TokenCredentialOptions,
@@ -131,7 +130,7 @@ impl AzureConfig {
 }
 
 impl KeyClientData {
-    fn get_client<'a>(&'a self) -> Result<KeyClient<'a, DefaultCredential>> {
+    fn get_client(&self) -> Result<KeyClient<'_, DefaultCredential>> {
         KeyClient::new(&self.kv_address, &self.credential).map_err(AzureError::ConfigurationError)
     }
 }
