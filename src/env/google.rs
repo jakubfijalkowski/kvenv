@@ -2,13 +2,13 @@ use clap::Clap;
 use googapis::{
     google::cloud::secretmanager::v1::{
         secret_manager_service_client::SecretManagerServiceClient, AccessSecretVersionRequest,
-        GetSecretRequest, GetSecretVersionRequest, ListSecretsRequest,
+        ListSecretsRequest, SecretPayload,
     },
     CERTIFICATES,
 };
 use gouth::Token;
 use serde_json::Value;
-use std::path::PathBuf;
+use std::{path::PathBuf, string::FromUtf8Error};
 use thiserror::Error;
 use tonic::{
     metadata::MetadataValue,
@@ -46,6 +46,8 @@ pub enum GoogleError {
     ConfigurationError(#[source] gouth::Error),
     #[error("cannot load secret from Secret Manager")]
     SecretManagerError(#[source] tonic::Status),
+    #[error("the value is not valid UTF-8 string")]
+    InvalidString(#[source] FromUtf8Error),
     #[error("the secret is empty")]
     EmptySecret,
 }
@@ -108,28 +110,85 @@ impl GoogleConfig {
 impl Vault for GoogleConfig {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
-        todo!()
+        let mut client = self.to_client().await?;
+        let project = self.project.as_ref().unwrap();
+        let response = client
+            .list_secrets(Request::new(ListSecretsRequest {
+                parent: format!("projects/{}", project),
+                page_size: 25000,
+                page_token: "".to_string(),
+            }))
+            .await
+            .map_err(GoogleError::SecretManagerError)?;
+        let secrets: Vec<_> = response
+            .into_inner()
+            .secrets
+            .into_iter()
+            .filter(|f| Self::secret_matches(prefix, &f.name))
+            .collect();
+        let mut from_kv = Vec::with_capacity(secrets.len());
+        for secret in secrets {
+            let value = self.get_secret_full_name(&mut client, &secret.name).await?;
+            let value = String::from_utf8(value.data).map_err(GoogleError::InvalidString)?;
+            let name = Self::strip_prefix(prefix, secret.name.clone());
+            dbg!(secret.name, &name);
+            from_kv.push((name, value));
+        }
+        Ok(from_kv)
     }
 
     #[tokio::main]
     async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
         let mut client = self.to_client().await?;
+        let payload = self.get_secret(&mut client, secret_name).await?;
+        let value: Value = serde_json::from_slice(&payload.data)?;
+        decode_env_from_json(secret_name, value)
+    }
+}
+
+impl GoogleConfig {
+    fn secret_matches(prefix: &str, name: &str) -> bool {
+        name.rfind('/')
+            .map(|idx| name[(idx + 1)..].starts_with(prefix))
+            .unwrap_or(false)
+    }
+
+    fn strip_prefix(prefix: &str, name: String) -> String {
+        name.rfind('/')
+            .map(|idx| name[(idx + 1 + prefix.len())..].to_string())
+            .unwrap()
+    }
+
+    async fn get_secret(
+        &self,
+        client: &mut SecretManagerServiceClient<Channel>,
+        secret_name: &str,
+    ) -> Result<SecretPayload> {
+        self.get_secret_full_name(
+            client,
+            &format!(
+                "projects/{}/secrets/{}",
+                self.project.as_ref().unwrap(),
+                secret_name
+            ),
+        )
+        .await
+    }
+
+    async fn get_secret_full_name(
+        &self,
+        client: &mut SecretManagerServiceClient<Channel>,
+        name: &str,
+    ) -> Result<SecretPayload> {
         let response = client
             .access_secret_version(Request::new(AccessSecretVersionRequest {
-                name: format!(
-                    "projects/{}/secrets/{}/versions/latest",
-                    self.project.as_ref().unwrap(),
-                    secret_name
-                ),
+                name: format!("{}/versions/latest", name),
             }))
             .await
             .map_err(GoogleError::SecretManagerError)?;
-        let payload = response
-            .get_ref()
+        response
+            .into_inner()
             .payload
-            .as_ref()
-            .ok_or(GoogleError::EmptySecret)?;
-        let value: Value = serde_json::from_slice(&payload.data)?;
-        decode_env_from_json(secret_name, value)
+            .ok_or(GoogleError::EmptySecret)
     }
 }
