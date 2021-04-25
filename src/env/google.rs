@@ -124,14 +124,13 @@ impl Vault for GoogleConfig {
             .into_inner()
             .secrets
             .into_iter()
-            .filter(|f| Self::secret_matches(prefix, &f.name))
+            .filter(|f| self.secret_matches(prefix, &f.name))
             .collect();
         let mut from_kv = Vec::with_capacity(secrets.len());
         for secret in secrets {
             let value = self.get_secret_full_name(&mut client, &secret.name).await?;
             let value = String::from_utf8(value.data).map_err(GoogleError::InvalidString)?;
-            let name = Self::strip_prefix(prefix, secret.name.clone());
-            dbg!(secret.name, &name);
+            let name = self.strip_prefix(prefix, &secret.name).to_string();
             from_kv.push((name, value));
         }
         Ok(from_kv)
@@ -147,16 +146,18 @@ impl Vault for GoogleConfig {
 }
 
 impl GoogleConfig {
-    fn secret_matches(prefix: &str, name: &str) -> bool {
-        name.rfind('/')
-            .map(|idx| name[(idx + 1)..].starts_with(prefix))
-            .unwrap_or(false)
+    fn strip_project<'a>(&'_ self, name: &'a str) -> &'a str {
+        const SKIP_CONST: usize = "project/".len() + "/secrets/".len();
+        let skip = SKIP_CONST + self.project.as_ref().unwrap().len();
+        &name[skip..]
     }
 
-    fn strip_prefix(prefix: &str, name: String) -> String {
-        name.rfind('/')
-            .map(|idx| name[(idx + 1 + prefix.len())..].to_string())
-            .unwrap()
+    fn secret_matches(&self, prefix: &str, name: &str) -> bool {
+        self.strip_project(name).starts_with(prefix)
+    }
+
+    fn strip_prefix<'a>(&'_ self, prefix: &'_ str, name: &'a str) -> &'a str {
+        &self.strip_project(name)[prefix.len()..]
     }
 
     async fn get_secret(
@@ -190,5 +191,76 @@ impl GoogleConfig {
             .into_inner()
             .payload
             .ok_or(GoogleError::EmptySecret)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_strip_project() {
+        let gc = GoogleConfig {
+            enabled: true,
+            credentials_file: None,
+            project: Some("kvenv".to_string()),
+        };
+
+        assert_eq!(
+            "thisisit",
+            gc.strip_project("project/kvenv/secrets/thisisit")
+        );
+        assert_eq!(
+            "thisisit",
+            gc.strip_project("project/kve/secrets/NOthisisit")
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn fail_strip_project() {
+        let gc = GoogleConfig {
+            enabled: true,
+            credentials_file: None,
+            project: Some("kvenv".to_string()),
+        };
+
+        gc.strip_project("");
+        gc.strip_project("project/kvenv/notthis");
+    }
+
+    #[test]
+    fn secret_matches_correctly() {
+        let gc = GoogleConfig {
+            enabled: true,
+            credentials_file: None,
+            project: Some("kvenv".to_string()),
+        };
+
+        assert!(gc.secret_matches("prefix", "project/kvenv/secrets/prefix-1"));
+        assert!(gc.secret_matches("prefix", "project/kvenv/secrets/prefix1"));
+        assert!(!gc.secret_matches("prefix", "project/kvenv/secrets/prefi"));
+    }
+
+    #[test]
+    fn strips_prefix_correctly() {
+        let gc = GoogleConfig {
+            enabled: true,
+            credentials_file: None,
+            project: Some("kvenv".to_string()),
+        };
+
+        assert_eq!(
+            "-1",
+            gc.strip_prefix("prefix", "project/kvenv/secrets/prefix-1")
+        );
+        assert_eq!(
+            "1",
+            gc.strip_prefix("prefix", "project/kvenv/secrets/prefix1")
+        );
+        assert_eq!(
+            "ENV_NAME",
+            gc.strip_prefix("prefix", "project/kvenv/secrets/prefixENV_NAME")
+        );
     }
 }
