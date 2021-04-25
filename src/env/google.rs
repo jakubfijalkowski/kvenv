@@ -147,9 +147,8 @@ impl Vault for GoogleConfig {
 
 impl GoogleConfig {
     fn strip_project<'a>(&'_ self, name: &'a str) -> &'a str {
-        const SKIP_CONST: usize = "project/".len() + "/secrets/".len();
-        let skip = SKIP_CONST + self.project.as_ref().unwrap().len();
-        &name[skip..]
+        let idx = name.rfind('/').unwrap();
+        &name[(idx + 1)..]
     }
 
     fn secret_matches(&self, prefix: &str, name: &str) -> bool {
@@ -208,17 +207,29 @@ mod tests {
 
         assert_eq!(
             "thisisit",
-            gc.strip_project("project/kvenv/secrets/thisisit")
+            gc.strip_project("projects/kvenv/secrets/thisisit")
         );
         assert_eq!(
             "thisisit",
-            gc.strip_project("project/kve/secrets/NOthisisit")
+            gc.strip_project("projects/kve/secrets/thisisit")
         );
     }
 
     #[test]
     #[should_panic]
-    fn fail_strip_project() {
+    fn fail_strip_project1() {
+        let gc = GoogleConfig {
+            enabled: true,
+            credentials_file: None,
+            project: Some("kvenv".to_string()),
+        };
+
+        gc.strip_project("projects");
+    }
+
+    #[test]
+    #[should_panic]
+    fn fail_strip_project2() {
         let gc = GoogleConfig {
             enabled: true,
             credentials_file: None,
@@ -226,7 +237,6 @@ mod tests {
         };
 
         gc.strip_project("");
-        gc.strip_project("project/kvenv/notthis");
     }
 
     #[test]
@@ -237,9 +247,9 @@ mod tests {
             project: Some("kvenv".to_string()),
         };
 
-        assert!(gc.secret_matches("prefix", "project/kvenv/secrets/prefix-1"));
-        assert!(gc.secret_matches("prefix", "project/kvenv/secrets/prefix1"));
-        assert!(!gc.secret_matches("prefix", "project/kvenv/secrets/prefi"));
+        assert!(gc.secret_matches("prefix", "projects/kvenv/secrets/prefix-1"));
+        assert!(gc.secret_matches("prefix", "projects/kvenv/secrets/prefix1"));
+        assert!(!gc.secret_matches("prefix", "projects/kvenv/secrets/prefi"));
     }
 
     #[test]
