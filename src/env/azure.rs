@@ -258,11 +258,10 @@ mod tests {
             keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
             keyvault_url: None,
         };
-        dbg!(&cfg);
         let proc_env = cfg
             .into_vault()
             .unwrap()
-            .download_json(&env_var("KVENV_SECRET_NAME").unwrap())
+            .download_json("integ-tests")
             .unwrap();
         assert_eq!(vec![env!("INTEGRATION_TESTS", "work")], proc_env);
     }
@@ -284,7 +283,7 @@ mod tests {
         let proc_env = cfg
             .into_vault()
             .unwrap()
-            .download_prefixed(&env_var("KVENV_SECRET_PREFIX").unwrap())
+            .download_prefixed("prefixed-")
             .unwrap();
         assert_eq!(
             vec![

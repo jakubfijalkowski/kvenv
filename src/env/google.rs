@@ -34,7 +34,7 @@ pub struct GoogleConfig {
     credentials_file: Option<PathBuf>,
 
     /// [Google] Google project to use.
-    #[clap(long, display_order = 111)]
+    #[clap(long, env = "GOOGLE_PROJECT", display_order = 111)]
     project: Option<String>,
 }
 
@@ -197,6 +197,16 @@ impl GoogleConfig {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "integration-tests")]
+    macro_rules! env {
+        ($a:expr) => {
+            $a.to_string()
+        };
+        ($a:expr, $b:expr) => {
+            ($a.to_string(), $b.to_string())
+        };
+    }
+
     #[test]
     fn can_strip_project() {
         let gc = GoogleConfig {
@@ -271,6 +281,47 @@ mod tests {
         assert_eq!(
             "ENV_NAME",
             gc.strip_prefix("prefix", "project/kvenv/secrets/prefixENV_NAME")
+        );
+    }
+
+    #[cfg(feature = "integration-tests")]
+    #[test]
+    fn integration_tests_single_value() {
+        use std::env::var as env_var;
+        let cfg = GoogleConfig {
+            enabled: true,
+            credentials_file: Some(env_var("GOOGLE_APPLICATION_CREDENTIALS").unwrap().into()),
+            project: Some(env_var("GOOGLE_PROJECT").unwrap()),
+        };
+        let proc_env = cfg
+            .into_vault()
+            .unwrap()
+            .download_json("integ-tests")
+            .unwrap();
+        assert_eq!(vec![env!("INTEGRATION_TESTS", "work")], proc_env);
+    }
+
+    #[cfg(feature = "integration-tests")]
+    #[test]
+    fn integration_tests_prefixed() {
+        use std::env::var as env_var;
+        let cfg = GoogleConfig {
+            enabled: true,
+            credentials_file: Some(env_var("GOOGLE_APPLICATION_CREDENTIALS").unwrap().into()),
+            project: Some(env_var("GOOGLE_PROJECT").unwrap()),
+        };
+        let proc_env = cfg
+            .into_vault()
+            .unwrap()
+            .download_prefixed("prefixed-")
+            .unwrap();
+        assert_eq!(
+            vec![
+                env!("INTEGRATION_TESTS_A", "work1"),
+                env!("INTEGRATION_TESTS_B", "work2"),
+                env!("INTEGRATION_TESTS_C", "work3")
+            ],
+            proc_env
         );
     }
 }
