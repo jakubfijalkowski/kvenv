@@ -79,8 +79,8 @@ jobs:
           KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}
           KVENV_CLIENT_SECRET: ${{ secrets.KVENV_CLIENT_SECRET }}
           KVENV_KEYVAULT_NAME: ${{ secrets.KVENV_KEYVAULT_NAME }}
-          KVENV_SECRET_NAME: ${{ secrets.KVENV_SECRET_NAME }}
-          KVENV_SECRET_PREFIX: ${{ secrets.KVENV_SECRET_PREFIX }}
+          GOOGLE_PROJECT: ${{ secrets.GOOGLE_PROJECT }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
 
   release:
     name: Create Github Release
