@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::{ArgGroup, ArgSettings, Clap};
 use googapis::{
     google::cloud::secretmanager::v1::{
         secret_manager_service_client::SecretManagerServiceClient, AccessSecretVersionRequest,
@@ -19,22 +19,36 @@ use tonic::{
 use super::{convert::decode_env_from_json, Vault, VaultConfig};
 
 #[derive(Clap, Debug)]
+#[clap(group = ArgGroup::new("google_creds"))]
 pub struct GoogleConfig {
     /// Use Google Secret Manager.
     #[clap(name = "google", long = "google", requires = "project")]
     enabled: bool,
 
-    /// [Google] The path to credentials file. Leave blank to use gouth default credentials resolution.
+    /// [Google] The path to credentials file. Leave blank to use gouth default credentials
+    /// resolution. Cannot be used with `credentials-json`.
     #[clap(
         long,
         parse(from_os_str),
         env = "GOOGLE_APPLICATION_CREDENTIALS",
-        display_order = 110
+        display_order = 110,
+        group = "google_creds"
     )]
     credentials_file: Option<PathBuf>,
 
+    /// [Google] The credentials JSON. Leave blank to use gouth default credentials resolution.
+    /// Cannot be used with `credentials-file`.
+    #[clap(
+        long,
+        env = "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+        setting = ArgSettings::HideEnvValues,
+        display_order = 111,
+        group = "google_creds"
+    )]
+    credentials_json: Option<String>,
+
     /// [Google] Google project to use.
-    #[clap(long, env = "GOOGLE_PROJECT", display_order = 111)]
+    #[clap(long, env = "GOOGLE_PROJECT", display_order = 112)]
     project: Option<String>,
 }
 
@@ -100,6 +114,8 @@ impl GoogleConfig {
     fn to_token(&self) -> Result<Token> {
         let token = if let Some(path) = &self.credentials_file {
             gouth::Builder::new().file(path).build()
+        } else if let Some(json) = &self.credentials_json {
+            gouth::Builder::new().json(json).build()
         } else {
             Token::new()
         };
@@ -212,6 +228,7 @@ mod tests {
         let gc = GoogleConfig {
             enabled: true,
             credentials_file: None,
+            credentials_json: None,
             project: Some("kvenv".to_string()),
         };
 
@@ -231,6 +248,7 @@ mod tests {
         let gc = GoogleConfig {
             enabled: true,
             credentials_file: None,
+            credentials_json: None,
             project: Some("kvenv".to_string()),
         };
 
@@ -243,6 +261,7 @@ mod tests {
         let gc = GoogleConfig {
             enabled: true,
             credentials_file: None,
+            credentials_json: None,
             project: Some("kvenv".to_string()),
         };
 
@@ -254,6 +273,7 @@ mod tests {
         let gc = GoogleConfig {
             enabled: true,
             credentials_file: None,
+            credentials_json: None,
             project: Some("kvenv".to_string()),
         };
 
@@ -267,6 +287,7 @@ mod tests {
         let gc = GoogleConfig {
             enabled: true,
             credentials_file: None,
+            credentials_json: None,
             project: Some("kvenv".to_string()),
         };
 
@@ -290,7 +311,12 @@ mod tests {
         use std::env::var as env_var;
         let cfg = GoogleConfig {
             enabled: true,
-            credentials_file: Some(env_var("GOOGLE_APPLICATION_CREDENTIALS").unwrap().into()),
+            credentials_file: None,
+            credentials_json: Some(
+                env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                    .unwrap()
+                    .into(),
+            ),
             project: Some(env_var("GOOGLE_PROJECT").unwrap()),
         };
         let proc_env = cfg
@@ -307,7 +333,12 @@ mod tests {
         use std::env::var as env_var;
         let cfg = GoogleConfig {
             enabled: true,
-            credentials_file: Some(env_var("GOOGLE_APPLICATION_CREDENTIALS").unwrap().into()),
+            credentials_file: None,
+            credentials_json: Some(
+                env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                    .unwrap()
+                    .into(),
+            ),
             project: Some(env_var("GOOGLE_PROJECT").unwrap()),
         };
         let proc_env = cfg
