@@ -50,6 +50,10 @@ pub type Result<T, E = GoogleError> = std::result::Result<T, E>;
 impl VaultConfig for GoogleConfig {
     type Vault = GoogleConfig;
 
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     fn into_vault(self) -> anyhow::Result<Self::Vault> {
         Ok(self)
     }

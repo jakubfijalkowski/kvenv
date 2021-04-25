@@ -17,7 +17,7 @@ pub trait Vault {
 
 pub trait VaultConfig {
     type Vault: Vault;
-    //fn is_enabled(&self) -> bool;
+    fn is_enabled(&self) -> bool;
     fn into_vault(self) -> Result<Self::Vault>;
 }
 
@@ -74,12 +74,12 @@ pub struct EnvConfig {
 
 impl EnvConfig {
     fn into_run_config(self) -> Result<(Box<dyn Vault>, DataConfig)> {
-        //let cloud: Box<dyn Vault> = match self.cloud {
-        //CloudConfig::Azure(a) => Box::new(a.into_vault()?),
-        //CloudConfig::Google(g) => Box::new(g.into_vault()?),
-        //};
-        //Ok((cloud, self.data))
-        todo!();
+        debug_assert!(self.azure.is_enabled() ^ self.google.is_enabled());
+        if self.azure.is_enabled() {
+            Ok((Box::new(self.azure.into_vault()?), self.data))
+        } else {
+            Ok((Box::new(self.google.into_vault()?), self.data))
+        }
     }
 }
 

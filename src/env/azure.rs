@@ -127,6 +127,10 @@ impl AzureConfig {
 impl VaultConfig for AzureConfig {
     type Vault = AzureVault;
 
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     fn into_vault(self) -> anyhow::Result<Self::Vault> {
         let kv_address = self.get_kv_address()?;
         let credential = self.credential.to_credential()?;
