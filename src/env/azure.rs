@@ -34,9 +34,6 @@ pub struct AzureConfig {
     #[clap(flatten)]
     credential: AzureCredential,
 
-    #[clap(flatten)]
-    data: DataConfig,
-
     /// The name of Azure KeyVault (in the public cloud) where the secret lives. Cannot be used
     /// with `keyvault-url`.
     #[clap(short = 'k', long, env = "AZURE_KEYVAULT_NAME", group = "keyvault")]
@@ -120,22 +117,18 @@ impl AzureConfig {
             )))
         }
     }
+}
 
-    fn to_client(&self) -> Result<AzureVault> {
+impl VaultConfig for AzureConfig {
+    type Vault = AzureVault;
+
+    fn into_vault(self) -> anyhow::Result<Self::Vault> {
         let kv_address = self.get_kv_address()?;
         let credential = self.credential.to_credential()?;
         Ok(AzureVault {
             kv_address,
             credential,
         })
-    }
-}
-
-impl VaultConfig for AzureConfig {
-    type Vault = AzureVault;
-
-    fn into_vault(self) -> anyhow::Result<(Self::Vault, DataConfig)> {
-        Ok((self.to_client()?, self.data))
     }
 }
 

@@ -13,10 +13,6 @@ mod run_with;
     about,
     version,
     author,
-    setting = AppSettings::ArgsNegateSubcommands,
-    setting = AppSettings::DisableHelpSubcommand,
-    setting = AppSettings::UnifiedHelpMessage,
-    setting = AppSettings::AllowMissingPositional,
 )]
 struct Opts {
     #[clap(subcommand)]

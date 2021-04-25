@@ -17,7 +17,7 @@ pub trait Vault {
 
 pub trait VaultConfig {
     type Vault: Vault;
-    fn into_vault(self) -> Result<(Self::Vault, DataConfig)>;
+    fn into_vault(self) -> Result<Self::Vault>;
 }
 
 #[derive(Clap, Debug)]
@@ -62,19 +62,18 @@ enum CloudConfig {
 pub struct EnvConfig {
     #[clap(subcommand)]
     cloud: CloudConfig,
+
+    #[clap(flatten)]
+    data: DataConfig,
 }
 
 impl EnvConfig {
     fn into_run_config(self) -> Result<(Box<dyn Vault>, DataConfig)> {
-        match self.cloud {
-            CloudConfig::Azure(a) => Self::box_vault(a.into_vault()?),
-            CloudConfig::Google(g) => Self::box_vault(g.into_vault()?),
-        }
-    }
-
-    fn box_vault<T: Vault + 'static>(v: (T, DataConfig)) -> Result<(Box<dyn Vault>, DataConfig)> {
-        let (v, c) = v;
-        Ok((Box::new(v), c))
+        let cloud: Box<dyn Vault> = match self.cloud {
+            CloudConfig::Azure(a) => Box::new(a.into_vault()?),
+            CloudConfig::Google(g) => Box::new(g.into_vault()?),
+        };
+        Ok((cloud, self.data))
     }
 }
 

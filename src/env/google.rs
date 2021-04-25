@@ -16,13 +16,10 @@ use tonic::{
     Request,
 };
 
-use super::{convert::decode_env_from_json, DataConfig, Vault, VaultConfig};
+use super::{convert::decode_env_from_json, Vault, VaultConfig};
 
 #[derive(Clap, Debug)]
 pub struct GoogleConfig {
-    #[clap(flatten)]
-    data: DataConfig,
-
     /// The path to credentials file. Leave blank to use gouth default credentials resolution.
     #[clap(
         short,
@@ -49,26 +46,17 @@ pub enum GoogleError {
     EmptySecret,
 }
 
-pub struct GoogleVault {
-    credentials_file: Option<PathBuf>,
-    project: String,
-}
-
 pub type Result<T, E = GoogleError> = std::result::Result<T, E>;
 
 impl VaultConfig for GoogleConfig {
-    type Vault = GoogleVault;
+    type Vault = GoogleConfig;
 
-    fn into_vault(self) -> anyhow::Result<(Self::Vault, DataConfig)> {
-        let vault = GoogleVault {
-            credentials_file: self.credentials_file,
-            project: self.project,
-        };
-        Ok((vault, self.data))
+    fn into_vault(self) -> anyhow::Result<Self::Vault> {
+        Ok(self)
     }
 }
 
-impl GoogleVault {
+impl GoogleConfig {
     async fn to_client(&self) -> Result<SecretManagerServiceClient<Channel>> {
         let tls_config = ClientTlsConfig::new()
             .ca_certificate(Certificate::from_pem(CERTIFICATES))
@@ -109,7 +97,7 @@ impl GoogleVault {
     }
 }
 
-impl Vault for GoogleVault {
+impl Vault for GoogleConfig {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
         todo!()
