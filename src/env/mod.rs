@@ -54,14 +54,11 @@ impl Default for DataConfig {
 
 #[derive(Clap, Debug)]
 enum CloudConfig {
-    #[clap()]
     Azure(AzureConfig),
-    #[clap()]
     Google(GoogleConfig),
 }
 
 #[derive(Clap, Debug)]
-#[clap()]
 pub struct EnvConfig {
     #[clap(subcommand)]
     cloud: CloudConfig,

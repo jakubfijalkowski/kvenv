@@ -25,11 +25,8 @@ struct Opts {
 
 #[derive(Clap, Debug)]
 enum SubCommand {
-    #[clap()]
     Cache(cache::Cache),
-    #[clap()]
     RunWith(run_with::RunWith),
-    #[clap()]
     RunIn(run_in::RunIn),
 }
 

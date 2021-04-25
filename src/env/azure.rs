@@ -14,7 +14,6 @@ use super::{
 };
 
 #[derive(Clap, Debug)]
-#[clap()]
 pub struct AzureCredential {
     /// The tenant id of the service principal used for authorization.
     #[clap(short, long, env = "AZURE_TENANT_ID")]

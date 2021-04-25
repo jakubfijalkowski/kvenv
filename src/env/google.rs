@@ -19,7 +19,6 @@ use tonic::{
 use super::{convert::decode_env_from_json, DataConfig, Vault, VaultConfig};
 
 #[derive(Clap, Debug)]
-#[clap()]
 pub struct GoogleConfig {
     #[clap(flatten)]
     data: DataConfig,
