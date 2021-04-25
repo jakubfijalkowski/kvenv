@@ -119,7 +119,7 @@ impl GoogleConfig {
         } else {
             Token::new()
         };
-        Ok(token.map_err(GoogleError::ConfigurationError)?)
+        token.map_err(GoogleError::ConfigurationError)
     }
 }
 
