@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use super::{
     convert::{convert_env_name, decode_env_from_json},
-    VaultConfig,
+    DataConfig, Vault, VaultConfig,
 };
 
 #[derive(Clap, Debug)]
@@ -35,6 +35,9 @@ pub struct AzureConfig {
     #[clap(flatten)]
     credential: AzureCredential,
 
+    #[clap(flatten)]
+    data: DataConfig,
+
     /// The name of Azure KeyVault (in the public cloud) where the secret lives. Cannot be used
     /// with `keyvault-url`.
     #[clap(short = 'k', long, env = "AZURE_KEYVAULT_NAME", group = "keyvault")]
@@ -51,6 +54,11 @@ pub enum AzureError {
     ConfigurationError(#[source] anyhow::Error),
     #[error("cannot load secret from keyvault")]
     KeyVaultError(#[source] KeyVaultError),
+}
+
+pub struct AzureVault {
+    kv_address: String,
+    credential: DefaultCredential,
 }
 
 pub type Result<T, E = AzureError> = std::result::Result<T, E>;
@@ -101,11 +109,6 @@ impl Default for AzureCredential {
     }
 }
 
-struct KeyClientData {
-    kv_address: String,
-    credential: DefaultCredential,
-}
-
 impl AzureConfig {
     fn get_kv_address(&self) -> Result<String> {
         if let Some(url) = &self.keyvault_url {
@@ -119,27 +122,34 @@ impl AzureConfig {
         }
     }
 
-    fn to_client(&self) -> Result<KeyClientData> {
+    fn to_client(&self) -> Result<AzureVault> {
         let kv_address = self.get_kv_address()?;
         let credential = self.credential.to_credential()?;
-        Ok(KeyClientData {
+        Ok(AzureVault {
             kv_address,
             credential,
         })
     }
 }
 
-impl KeyClientData {
+impl VaultConfig for AzureConfig {
+    type Vault = AzureVault;
+
+    fn into_vault(self) -> anyhow::Result<(Self::Vault, DataConfig)> {
+        Ok((self.to_client()?, self.data))
+    }
+}
+
+impl AzureVault {
     fn get_client(&self) -> Result<KeyClient<'_, DefaultCredential>> {
         KeyClient::new(&self.kv_address, &self.credential).map_err(AzureError::ConfigurationError)
     }
 }
 
-impl VaultConfig for AzureConfig {
+impl Vault for AzureVault {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let client_data = self.to_client()?;
-        let mut client = client_data.get_client()?;
+        let mut client = self.get_client()?;
 
         let secrets = client
             .list_secrets()
@@ -154,7 +164,7 @@ impl VaultConfig for AzureConfig {
             .map(|x| convert_env_name(&prefix, x.name()))
             .collect::<anyhow::Result<Vec<_>>>()?;
         let env_values = secrets.iter().map(|s| {
-            let client = client_data.get_client();
+            let client = self.get_client();
             async move {
                 client?
                     .get_secret(s.name())
@@ -172,8 +182,7 @@ impl VaultConfig for AzureConfig {
 
     #[tokio::main]
     async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let client_data = self.to_client()?;
-        let mut client = client_data.get_client()?;
+        let mut client = self.get_client()?;
         let secret = client
             .get_secret(secret_name)
             .await
@@ -201,6 +210,7 @@ mod tests {
     fn get_kv_address_raw_url() {
         let cfg = AzureConfig {
             credential: AzureCredential::default(),
+            data: DataConfig::default(),
             keyvault_url: Some("url".to_string()),
             keyvault_name: None,
         };
@@ -212,6 +222,7 @@ mod tests {
     fn get_kv_address_name() {
         let cfg = AzureConfig {
             credential: AzureCredential::default(),
+            data: DataConfig::default(),
             keyvault_name: Some("name".to_string()),
             keyvault_url: None,
         };
@@ -232,11 +243,14 @@ mod tests {
                 client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
                 client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
             },
+            data: DataConfig::default(),
             keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
             keyvault_url: None,
         };
         dbg!(&cfg);
         let proc_env = cfg
+            .to_client()
+            .unwrap()
             .download_json(&env_var("KVENV_SECRET_NAME").unwrap())
             .unwrap();
         assert_eq!(vec![env!("INTEGRATION_TESTS", "work")], proc_env);
@@ -252,10 +266,13 @@ mod tests {
                 client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
                 client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
             },
+            data: DataConfig::default(),
             keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
             keyvault_url: None,
         };
         let proc_env = cfg
+            .to_client()
+            .unwrap()
             .download_prefixed(&env_var("KVENV_SECRET_PREFIX").unwrap())
             .unwrap();
         assert_eq!(

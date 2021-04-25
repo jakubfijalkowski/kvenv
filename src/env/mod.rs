@@ -7,13 +7,17 @@ mod google;
 mod process_env;
 
 use azure::*;
+use google::GoogleConfig;
 pub use process_env::ProcessEnv;
 
-use self::google::GoogleConfig;
-
-pub trait VaultConfig {
+pub trait Vault {
     fn download_prefixed(&self, prefix: &str) -> Result<Vec<(String, String)>>;
     fn download_json(&self, secret_name: &str) -> Result<Vec<(String, String)>>;
+}
+
+pub trait VaultConfig {
+    type Vault: Vault;
+    fn into_vault(self) -> Result<(Self::Vault, DataConfig)>;
 }
 
 #[derive(Clap, Debug)]
@@ -24,7 +28,7 @@ pub struct DataConfig {
     secret_name: Option<String>,
 
     /// The prefix of secrets with the environment variables. Cannot be used along `secret-name`.
-    #[clap(short = 'p', long, env = "KVENV_SECRET_PREFIX", group = "secret")]
+    #[clap(short = 's', long, env = "KVENV_SECRET_PREFIX", group = "secret")]
     secret_prefix: Option<String>,
 
     /// If set, `kvenv` will use OS's environment at the point in time when the environment is
@@ -35,6 +39,17 @@ pub struct DataConfig {
     /// Environment variables that should be masked by the subsequent calls to `with`.
     #[clap(short, long)]
     mask: Vec<String>,
+}
+
+impl Default for DataConfig {
+    fn default() -> Self {
+        Self {
+            secret_name: None,
+            secret_prefix: None,
+            snapshot_env: false,
+            mask: vec![],
+        }
+    }
 }
 
 #[derive(Clap, Debug)]
@@ -50,23 +65,24 @@ enum CloudConfig {
 pub struct EnvConfig {
     #[clap(subcommand)]
     cloud: CloudConfig,
-
-    #[clap(flatten)]
-    data: DataConfig,
 }
 
 impl EnvConfig {
-    fn into_run_config(self) -> (Box<dyn VaultConfig>, DataConfig) {
-        let cloud: Box<dyn VaultConfig> = match self.cloud {
-            CloudConfig::Azure(a) => Box::new(a),
-            CloudConfig::Google(g) => Box::new(g),
-        };
-        (cloud, self.data)
+    fn into_run_config(self) -> Result<(Box<dyn Vault>, DataConfig)> {
+        match self.cloud {
+            CloudConfig::Azure(a) => Self::box_vault(a.into_vault()?),
+            CloudConfig::Google(g) => Self::box_vault(g.into_vault()?),
+        }
+    }
+
+    fn box_vault<T: Vault + 'static>(v: (T, DataConfig)) -> Result<(Box<dyn Vault>, DataConfig)> {
+        let (v, c) = v;
+        Ok((Box::new(v), c))
     }
 }
 
 pub fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
-    let (vault, cfg) = cfg.into_run_config();
+    let (vault, cfg) = cfg.into_run_config()?;
     let from_kv = if cfg.secret_name.is_some() {
         vault.download_json(&cfg.secret_name.unwrap())?
     } else if cfg.secret_prefix.is_some() {
