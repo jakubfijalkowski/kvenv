@@ -25,7 +25,12 @@ pub struct GoogleConfig {
     enabled: bool,
 
     /// [Google] The path to credentials file. Leave blank to use gouth default credentials resolution.
-    #[clap(long, parse(from_os_str), env = "GOOGLE_APPLICATION_CREDENTIALS", display_order = 110)]
+    #[clap(
+        long,
+        parse(from_os_str),
+        env = "GOOGLE_APPLICATION_CREDENTIALS",
+        display_order = 110
+    )]
     credentials_file: Option<PathBuf>,
 
     /// [Google] Google project to use.

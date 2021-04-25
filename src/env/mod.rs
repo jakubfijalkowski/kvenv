@@ -25,11 +25,23 @@ pub trait VaultConfig {
 #[clap(group = ArgGroup::new("secret").required(true))]
 pub struct DataConfig {
     /// The name of the secret with the environment defined. Cannot be used along `secret-prefix`.
-    #[clap(short = 'n', long, env = "KVENV_SECRET_NAME", group = "secret", display_order = 1)]
+    #[clap(
+        short = 'n',
+        long,
+        env = "KVENV_SECRET_NAME",
+        group = "secret",
+        display_order = 1
+    )]
     secret_name: Option<String>,
 
     /// The prefix of secrets with the environment variables. Cannot be used along `secret-name`.
-    #[clap(short = 's', long, env = "KVENV_SECRET_PREFIX", group = "secret", display_order = 2)]
+    #[clap(
+        short = 's',
+        long,
+        env = "KVENV_SECRET_PREFIX",
+        group = "secret",
+        display_order = 2
+    )]
     secret_prefix: Option<String>,
 
     /// If set, `kvenv` will use OS's environment at the point in time when the environment is

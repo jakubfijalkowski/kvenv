@@ -40,12 +40,22 @@ pub struct AzureConfig {
 
     /// [Azure] The name of Azure KeyVault (in the public cloud) where the secret lives. Cannot be
     /// used with `keyvault-url`.
-    #[clap(long, env = "AZURE_KEYVAULT_NAME", group = "keyvault", display_order = 103)]
+    #[clap(
+        long,
+        env = "AZURE_KEYVAULT_NAME",
+        group = "keyvault",
+        display_order = 103
+    )]
     keyvault_name: Option<String>,
 
     /// [Azure] The URL to the Azure KeyVault where the secret lives. Cannot be used with
     /// `keyvault-name`.
-    #[clap(long, env = "AZURE_KEYVAULT_URL", group = "keyvault", display_order = 104)]
+    #[clap(
+        long,
+        env = "AZURE_KEYVAULT_URL",
+        group = "keyvault",
+        display_order = 104
+    )]
     keyvault_url: Option<String>,
 }
 
