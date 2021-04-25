@@ -4,7 +4,9 @@
 
 - Added support for ASP.NET Core-compatible key format
 - Removed the `cleanup` command
-- Fail if environment in JSON secret has invalid keys
+- `kvenv` now fails if environment in JSON secret has invalid keys
+- Removed short argument options for Azure
+- Add GCP Secret Manager support
 
 ## 0.1.0 (2021-01-03)
 
