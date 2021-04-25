@@ -21,11 +21,14 @@ azure_identity = { git = "https://github.com/Azure/azure-sdk-for-rust.git" }
 azure_key_vault = { git = "https://github.com/Azure/azure-sdk-for-rust.git" }
 clap = "3.0.0-beta.2"
 futures = "^0.3"
+googapis = { version = "^0.4", features = ["google-cloud-secretmanager-v1"] }
+gouth = { version = "^0.2", features = ["tonic-intercept"] }
 serde = "^1.0"
 serde_json = "^1.0"
 tempfile = "^3.2"
 thiserror = "^1.0"
 tokio = { version = "^1.1", features = ["rt", "macros"] }
+tonic = { version = "^0.4", features = ["tls"] }
 
 [features]
 default = []

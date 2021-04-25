@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::Clap;
+use clap::{AppSettings, Clap};
 
 mod cache;
 mod env;
@@ -8,7 +8,16 @@ mod run_in;
 mod run_with;
 
 #[derive(Clap, Debug)]
-#[clap(name = "kvenv", about, version, author)]
+#[clap(
+    name = "kvenv",
+    about,
+    version,
+    author,
+    setting = AppSettings::ArgsNegateSubcommands,
+    setting = AppSettings::DisableHelpSubcommand,
+    setting = AppSettings::UnifiedHelpMessage,
+    setting = AppSettings::AllowMissingPositional,
+)]
 struct Opts {
     #[clap(subcommand)]
     subcommand: SubCommand,

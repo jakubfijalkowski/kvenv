@@ -3,10 +3,13 @@ use clap::{ArgGroup, Clap};
 
 mod azure;
 mod convert;
+mod google;
 mod process_env;
 
 use azure::*;
 pub use process_env::ProcessEnv;
+
+use self::google::GoogleConfig;
 
 pub trait VaultConfig {
     fn download_prefixed(&self, prefix: &str) -> Result<Vec<(String, String)>>;
@@ -35,10 +38,18 @@ pub struct DataConfig {
 }
 
 #[derive(Clap, Debug)]
+enum CloudConfig {
+    #[clap()]
+    Azure(AzureConfig),
+    #[clap()]
+    Google(GoogleConfig),
+}
+
+#[derive(Clap, Debug)]
 #[clap()]
 pub struct EnvConfig {
-    #[clap(flatten)]
-    azure: AzureConfig,
+    #[clap(subcommand)]
+    cloud: CloudConfig,
 
     #[clap(flatten)]
     data: DataConfig,
@@ -46,7 +57,11 @@ pub struct EnvConfig {
 
 impl EnvConfig {
     fn into_run_config(self) -> (Box<dyn VaultConfig>, DataConfig) {
-        (Box::new(self.azure), self.data)
+        let cloud: Box<dyn VaultConfig> = match self.cloud {
+            CloudConfig::Azure(a) => Box::new(a),
+            CloudConfig::Google(g) => Box::new(g),
+        };
+        (cloud, self.data)
     }
 }
 
