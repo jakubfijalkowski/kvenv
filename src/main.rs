@@ -13,6 +13,7 @@ mod run_with;
     about,
     version,
     author,
+    global_setting = AppSettings::NextLineHelp,
 )]
 struct Opts {
     #[clap(subcommand)]

@@ -17,6 +17,7 @@ pub trait Vault {
 
 pub trait VaultConfig {
     type Vault: Vault;
+    //fn is_enabled(&self) -> bool;
     fn into_vault(self) -> Result<Self::Vault>;
 }
 
@@ -24,11 +25,11 @@ pub trait VaultConfig {
 #[clap(group = ArgGroup::new("secret").required(true))]
 pub struct DataConfig {
     /// The name of the secret with the environment defined. Cannot be used along `secret-prefix`.
-    #[clap(short = 'n', long, env = "KVENV_SECRET_NAME", group = "secret")]
+    #[clap(short = 'n', long, env = "KVENV_SECRET_NAME", group = "secret", display_order = 1)]
     secret_name: Option<String>,
 
     /// The prefix of secrets with the environment variables. Cannot be used along `secret-name`.
-    #[clap(short = 's', long, env = "KVENV_SECRET_PREFIX", group = "secret")]
+    #[clap(short = 's', long, env = "KVENV_SECRET_PREFIX", group = "secret", display_order = 2)]
     secret_prefix: Option<String>,
 
     /// If set, `kvenv` will use OS's environment at the point in time when the environment is
@@ -37,7 +38,7 @@ pub struct DataConfig {
     snapshot_env: bool,
 
     /// Environment variables that should be masked by the subsequent calls to `with`.
-    #[clap(short, long)]
+    #[clap(short, long, display_order = 3)]
     mask: Vec<String>,
 }
 
@@ -53,15 +54,19 @@ impl Default for DataConfig {
 }
 
 #[derive(Clap, Debug)]
-enum CloudConfig {
-    Azure(AzureConfig),
-    Google(GoogleConfig),
-}
+#[clap(
+    group = ArgGroup::new("cloud")
+        .args(&["azure", "google"])
+        .required(true)
+        .multiple(false),
 
-#[derive(Clap, Debug)]
+)]
 pub struct EnvConfig {
-    #[clap(subcommand)]
-    cloud: CloudConfig,
+    #[clap(flatten)]
+    azure: AzureConfig,
+
+    #[clap(flatten)]
+    google: GoogleConfig,
 
     #[clap(flatten)]
     data: DataConfig,
@@ -69,11 +74,12 @@ pub struct EnvConfig {
 
 impl EnvConfig {
     fn into_run_config(self) -> Result<(Box<dyn Vault>, DataConfig)> {
-        let cloud: Box<dyn Vault> = match self.cloud {
-            CloudConfig::Azure(a) => Box::new(a.into_vault()?),
-            CloudConfig::Google(g) => Box::new(g.into_vault()?),
-        };
-        Ok((cloud, self.data))
+        //let cloud: Box<dyn Vault> = match self.cloud {
+        //CloudConfig::Azure(a) => Box::new(a.into_vault()?),
+        //CloudConfig::Google(g) => Box::new(g.into_vault()?),
+        //};
+        //Ok((cloud, self.data))
+        todo!();
     }
 }
 

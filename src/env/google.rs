@@ -20,18 +20,17 @@ use super::{convert::decode_env_from_json, Vault, VaultConfig};
 
 #[derive(Clap, Debug)]
 pub struct GoogleConfig {
-    /// The path to credentials file. Leave blank to use gouth default credentials resolution.
-    #[clap(
-        short,
-        long,
-        parse(from_os_str),
-        env = "GOOGLE_APPLICATION_CREDENTIALS"
-    )]
+    /// Use Google Secret Manager.
+    #[clap(name = "google", long = "google", requires = "project")]
+    enabled: bool,
+
+    /// [Google] The path to credentials file. Leave blank to use gouth default credentials resolution.
+    #[clap(long, parse(from_os_str), env = "GOOGLE_APPLICATION_CREDENTIALS", display_order = 110)]
     credentials_file: Option<PathBuf>,
 
-    /// Google project to use.
-    #[clap(short = 'p', long)]
-    project: String,
+    /// [Google] Google project to use.
+    #[clap(long, display_order = 111)]
+    project: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -110,7 +109,8 @@ impl Vault for GoogleConfig {
             .access_secret_version(Request::new(AccessSecretVersionRequest {
                 name: format!(
                     "projects/{}/secrets/{}/versions/latest",
-                    self.project, secret_name
+                    self.project.as_ref().unwrap(),
+                    secret_name
                 ),
             }))
             .await

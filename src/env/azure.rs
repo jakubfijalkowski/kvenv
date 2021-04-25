@@ -10,37 +10,42 @@ use thiserror::Error;
 
 use super::{
     convert::{convert_env_name, decode_env_from_json},
-    DataConfig, Vault, VaultConfig,
+    Vault, VaultConfig,
 };
 
 #[derive(Clap, Debug)]
 pub struct AzureCredential {
-    /// The tenant id of the service principal used for authorization.
-    #[clap(short, long, env = "AZURE_TENANT_ID")]
+    /// [Azure] The tenant id of the service principal used for authorization.
+    #[clap(long, env = "AZURE_TENANT_ID", display_order = 100)]
     tenant_id: Option<String>,
 
-    /// The application id of the service principal used for authorization.
-    #[clap(short = 'c', long, env = "AZURE_CLIENT_ID")]
+    /// [Azure] The application id of the service principal used for authorization.
+    #[clap(long, env = "AZURE_CLIENT_ID", display_order = 101)]
     client_id: Option<String>,
 
-    /// The secret of the service principal used for authorization.
-    #[clap(short = 's', long, env = "AZURE_CLIENT_SECRET", setting = ArgSettings::HideEnvValues)]
+    /// [Azure] The secret of the service principal used for authorization.
+    #[clap(long, env = "AZURE_CLIENT_SECRET", setting = ArgSettings::HideEnvValues, display_order = 102)]
     client_secret: Option<String>,
 }
 
 #[derive(Clap, Debug)]
-#[clap(group = ArgGroup::new("keyvault").required(true))]
+#[clap(group = ArgGroup::new("keyvault"))]
 pub struct AzureConfig {
+    /// Use Azure Key Vault.
+    #[clap(name = "azure", long = "azure", requires = "keyvault")]
+    enabled: bool,
+
     #[clap(flatten)]
     credential: AzureCredential,
 
-    /// The name of Azure KeyVault (in the public cloud) where the secret lives. Cannot be used
-    /// with `keyvault-url`.
-    #[clap(short = 'k', long, env = "AZURE_KEYVAULT_NAME", group = "keyvault")]
+    /// [Azure] The name of Azure KeyVault (in the public cloud) where the secret lives. Cannot be
+    /// used with `keyvault-url`.
+    #[clap(long, env = "AZURE_KEYVAULT_NAME", group = "keyvault", display_order = 103)]
     keyvault_name: Option<String>,
 
-    /// The URL to the Azure KeyVault where the secret lives. Cannot be used with `keyvault-name`.
-    #[clap(short = 'u', long, env = "AZURE_KEYVAULT_URL", group = "keyvault")]
+    /// [Azure] The URL to the Azure KeyVault where the secret lives. Cannot be used with
+    /// `keyvault-name`.
+    #[clap(long, env = "AZURE_KEYVAULT_URL", group = "keyvault", display_order = 104)]
     keyvault_url: Option<String>,
 }
 
@@ -201,8 +206,8 @@ mod tests {
     #[test]
     fn get_kv_address_raw_url() {
         let cfg = AzureConfig {
+            enabled: true,
             credential: AzureCredential::default(),
-            data: DataConfig::default(),
             keyvault_url: Some("url".to_string()),
             keyvault_name: None,
         };
@@ -213,8 +218,8 @@ mod tests {
     #[test]
     fn get_kv_address_name() {
         let cfg = AzureConfig {
+            enabled: true,
             credential: AzureCredential::default(),
-            data: DataConfig::default(),
             keyvault_name: Some("name".to_string()),
             keyvault_url: None,
         };
@@ -230,18 +235,18 @@ mod tests {
     fn integration_tests_single_value() {
         use std::env::var as env_var;
         let cfg = AzureConfig {
+            enabled: true,
             credential: AzureCredential {
                 tenant_id: Some(env_var("KVENV_TENANT_ID").unwrap()),
                 client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
                 client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
             },
-            data: DataConfig::default(),
             keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
             keyvault_url: None,
         };
         dbg!(&cfg);
         let proc_env = cfg
-            .to_client()
+            .into_vault()
             .unwrap()
             .download_json(&env_var("KVENV_SECRET_NAME").unwrap())
             .unwrap();
@@ -253,17 +258,17 @@ mod tests {
     fn integration_tests_prefixed() {
         use std::env::var as env_var;
         let cfg = AzureConfig {
+            enabled: true,
             credential: AzureCredential {
                 tenant_id: Some(env_var("KVENV_TENANT_ID").unwrap()),
                 client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
                 client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
             },
-            data: DataConfig::default(),
             keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
             keyvault_url: None,
         };
         let proc_env = cfg
-            .to_client()
+            .into_vault()
             .unwrap()
             .download_prefixed(&env_var("KVENV_SECRET_PREFIX").unwrap())
             .unwrap();
