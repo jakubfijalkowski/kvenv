@@ -14,7 +14,7 @@ use super::{convert::decode_env_from_json, Vault, VaultConfig};
 #[derive(Clap, Debug)]
 pub struct AWSConfig {
     /// Use AWS Secrets Manager.
-    #[clap(name = "aws", long = "aws", requires = "region")]
+    #[clap(name = "aws", long = "aws", requires = "aws-region")]
     enabled: bool,
 
     /// [AWS] The Access Key Id. Requires `secret_access_key` if provided. If not specified,
@@ -23,9 +23,9 @@ pub struct AWSConfig {
         long,
         env = "AWS_ACCESS_KEY_ID",
         display_order = 120,
-        requires = "secret-access-key"
+        requires = "aws-secret-access-key"
     )]
-    access_key_id: Option<String>,
+    aws_access_key_id: Option<String>,
 
     /// [AWS] The Secret Access Key. Requires `access_key_id` if provided. If not specified,
     /// default rusoto credential matching is used.
@@ -35,11 +35,11 @@ pub struct AWSConfig {
         setting = ArgSettings::HideEnvValues,
         display_order = 121,
     )]
-    secret_access_key: Option<String>,
+    aws_secret_access_key: Option<String>,
 
     /// [AWS] AWS region.
     #[clap(long, env = "AWS_REGION", display_order = 122)]
-    region: Option<Region>,
+    aws_region: Option<Region>,
 }
 
 #[derive(Error, Debug)]
@@ -73,16 +73,24 @@ impl VaultConfig for AWSConfig {
 
     fn into_vault(self) -> anyhow::Result<Self::Vault> {
         let http_client = HttpClient::new().map_err(AWSError::TlsError)?;
-        if let Some(key_id) = self.access_key_id {
-            let secret = self.secret_access_key.unwrap();
+        if let Some(key_id) = self.aws_access_key_id {
+            let secret = self.aws_secret_access_key.unwrap();
             let provider = StaticProvider::new_minimal(key_id, secret);
             Ok(Self::Vault {
-                client: SecretsManagerClient::new_with(http_client, provider, self.region.unwrap()),
+                client: SecretsManagerClient::new_with(
+                    http_client,
+                    provider,
+                    self.aws_region.unwrap(),
+                ),
             })
         } else {
             let provider = DefaultCredentialsProvider::new().map_err(AWSError::CredentialsError)?;
             Ok(Self::Vault {
-                client: SecretsManagerClient::new_with(http_client, provider, self.region.unwrap()),
+                client: SecretsManagerClient::new_with(
+                    http_client,
+                    provider,
+                    self.aws_region.unwrap(),
+                ),
             })
         }
     }
@@ -144,7 +152,7 @@ impl Vault for AWSVault {
     }
 }
 
-fn decode_secret(secret: GetSecretValueResponse) -> Result<Value, AWSError> {
+fn decode_secret(secret: GetSecretValueResponse) -> Result<Value> {
     secret
         .secret_string
         .as_ref()
@@ -156,6 +164,7 @@ fn decode_secret(secret: GetSecretValueResponse) -> Result<Value, AWSError> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "integration-tests")]
     use super::*;
 
     #[cfg(feature = "integration-tests")]
@@ -174,9 +183,9 @@ mod tests {
         use std::env::var as env_var;
         let cfg = AWSConfig {
             enabled: true,
-            access_key_id: Some(env_var("AWS_ACCESS_KEY_ID").unwrap()),
-            secret_access_key: Some(env_var("AWS_SECRET_ACCESS_KEY").unwrap()),
-            region: Some(Region::EuCentral1),
+            aws_access_key_id: Some(env_var("AWS_ACCESS_KEY_ID").unwrap()),
+            aws_secret_access_key: Some(env_var("AWS_SECRET_ACCESS_KEY").unwrap()),
+            aws_region: Some(Region::EuCentral1),
         };
         let proc_env = cfg
             .into_vault()
@@ -198,9 +207,9 @@ mod tests {
         use std::env::var as env_var;
         let cfg = AWSConfig {
             enabled: true,
-            access_key_id: Some(env_var("AWS_ACCESS_KEY_ID").unwrap()),
-            secret_access_key: Some(env_var("AWS_SECRET_ACCESS_KEY").unwrap()),
-            region: Some(Region::EuCentral1),
+            aws_access_key_id: Some(env_var("AWS_ACCESS_KEY_ID").unwrap()),
+            aws_secret_access_key: Some(env_var("AWS_SECRET_ACCESS_KEY").unwrap()),
+            aws_region: Some(Region::EuCentral1),
         };
         let proc_env = cfg
             .into_vault()

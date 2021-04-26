@@ -22,7 +22,7 @@ use super::{convert::decode_env_from_json, Vault, VaultConfig};
 #[clap(group = ArgGroup::new("google_creds"))]
 pub struct GoogleConfig {
     /// Use Google Secret Manager.
-    #[clap(name = "google", long = "google", requires = "project")]
+    #[clap(name = "google", long = "google", requires = "google-project")]
     enabled: bool,
 
     /// [Google] The path to credentials file. Leave blank to use gouth default credentials
@@ -34,7 +34,7 @@ pub struct GoogleConfig {
         display_order = 110,
         group = "google_creds"
     )]
-    credentials_file: Option<PathBuf>,
+    google_credentials_file: Option<PathBuf>,
 
     /// [Google] The credentials JSON. Leave blank to use gouth default credentials resolution.
     /// Cannot be used with `credentials-file`.
@@ -45,11 +45,11 @@ pub struct GoogleConfig {
         display_order = 111,
         group = "google_creds"
     )]
-    credentials_json: Option<String>,
+    google_credentials_json: Option<String>,
 
     /// [Google] Google project to use.
     #[clap(long, env = "GOOGLE_PROJECT", display_order = 112)]
-    project: Option<String>,
+    google_project: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -112,9 +112,9 @@ impl GoogleConfig {
     }
 
     fn to_token(&self) -> Result<Token> {
-        let token = if let Some(path) = &self.credentials_file {
+        let token = if let Some(path) = &self.google_credentials_file {
             gouth::Builder::new().file(path).build()
-        } else if let Some(json) = &self.credentials_json {
+        } else if let Some(json) = &self.google_credentials_json {
             gouth::Builder::new().json(json).build()
         } else {
             Token::new()
@@ -127,7 +127,7 @@ impl Vault for GoogleConfig {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
         let mut client = self.to_client().await?;
-        let project = self.project.as_ref().unwrap();
+        let project = self.google_project.as_ref().unwrap();
         let response = client
             .list_secrets(Request::new(ListSecretsRequest {
                 parent: format!("projects/{}", project),
@@ -184,7 +184,7 @@ impl GoogleConfig {
             client,
             &format!(
                 "projects/{}/secrets/{}",
-                self.project.as_ref().unwrap(),
+                self.google_project.as_ref().unwrap(),
                 secret_name
             ),
         )
@@ -227,9 +227,9 @@ mod tests {
     fn can_strip_project() {
         let gc = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: None,
-            project: Some("kvenv".to_string()),
+            google_credentials_file: None,
+            google_credentials_json: None,
+            google_project: Some("kvenv".to_string()),
         };
 
         assert_eq!(
@@ -247,9 +247,9 @@ mod tests {
     fn fail_strip_project1() {
         let gc = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: None,
-            project: Some("kvenv".to_string()),
+            google_credentials_file: None,
+            google_credentials_json: None,
+            google_project: Some("kvenv".to_string()),
         };
 
         gc.strip_project("projects");
@@ -260,9 +260,9 @@ mod tests {
     fn fail_strip_project2() {
         let gc = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: None,
-            project: Some("kvenv".to_string()),
+            google_credentials_file: None,
+            google_credentials_json: None,
+            google_project: Some("kvenv".to_string()),
         };
 
         gc.strip_project("");
@@ -272,9 +272,9 @@ mod tests {
     fn secret_matches_correctly() {
         let gc = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: None,
-            project: Some("kvenv".to_string()),
+            google_credentials_file: None,
+            google_credentials_json: None,
+            google_project: Some("kvenv".to_string()),
         };
 
         assert!(gc.secret_matches("prefix", "projects/kvenv/secrets/prefix-1"));
@@ -286,9 +286,9 @@ mod tests {
     fn strips_prefix_correctly() {
         let gc = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: None,
-            project: Some("kvenv".to_string()),
+            google_credentials_file: None,
+            google_credentials_json: None,
+            google_project: Some("kvenv".to_string()),
         };
 
         assert_eq!(
@@ -311,13 +311,13 @@ mod tests {
         use std::env::var as env_var;
         let cfg = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: Some(
+            google_credentials_file: None,
+            google_credentials_json: Some(
                 env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON")
                     .unwrap()
                     .into(),
             ),
-            project: Some(env_var("GOOGLE_PROJECT").unwrap()),
+            google_project: Some(env_var("GOOGLE_PROJECT").unwrap()),
         };
         let proc_env = cfg
             .into_vault()
@@ -333,13 +333,13 @@ mod tests {
         use std::env::var as env_var;
         let cfg = GoogleConfig {
             enabled: true,
-            credentials_file: None,
-            credentials_json: Some(
+            google_credentials_file: None,
+            google_credentials_json: Some(
                 env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON")
                     .unwrap()
                     .into(),
             ),
-            project: Some(env_var("GOOGLE_PROJECT").unwrap()),
+            google_project: Some(env_var("GOOGLE_PROJECT").unwrap()),
         };
         let proc_env = cfg
             .into_vault()

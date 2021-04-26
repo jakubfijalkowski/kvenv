@@ -17,15 +17,15 @@ use super::{
 pub struct AzureCredential {
     /// [Azure] The tenant id of the service principal used for authorization.
     #[clap(long, env = "AZURE_TENANT_ID", display_order = 100)]
-    tenant_id: Option<String>,
+    azure_tenant_id: Option<String>,
 
     /// [Azure] The application id of the service principal used for authorization.
     #[clap(long, env = "AZURE_CLIENT_ID", display_order = 101)]
-    client_id: Option<String>,
+    azure_client_id: Option<String>,
 
     /// [Azure] The secret of the service principal used for authorization.
     #[clap(long, env = "AZURE_CLIENT_SECRET", setting = ArgSettings::HideEnvValues, display_order = 102)]
-    client_secret: Option<String>,
+    azure_client_secret: Option<String>,
 }
 
 #[derive(Clap, Debug)]
@@ -46,7 +46,7 @@ pub struct AzureConfig {
         group = "keyvault",
         display_order = 103
     )]
-    keyvault_name: Option<String>,
+    azure_keyvault_name: Option<String>,
 
     /// [Azure] The URL to the Azure KeyVault where the secret lives. Cannot be used with
     /// `keyvault-name`.
@@ -56,7 +56,7 @@ pub struct AzureConfig {
         group = "keyvault",
         display_order = 104
     )]
-    keyvault_url: Option<String>,
+    azure_keyvault_url: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -76,12 +76,12 @@ pub type Result<T, E = AzureError> = std::result::Result<T, E>;
 
 impl AzureCredential {
     fn is_valid(&self) -> bool {
-        self.tenant_id.is_some() && self.client_id.is_some() && self.client_secret.is_some()
+        self.azure_tenant_id.is_some() && self.azure_client_id.is_some() && self.azure_client_secret.is_some()
     }
 
     fn validate(&self) -> Result<()> {
         let has_some =
-            self.tenant_id.is_some() || self.client_id.is_some() || self.client_secret.is_some();
+            self.azure_tenant_id.is_some() || self.azure_client_id.is_some() || self.azure_client_secret.is_some();
         if has_some && !self.is_valid() {
             Err(AzureError::ConfigurationError(anyhow::Error::msg(
                 "if you want to use CLI-passed credentials, all need to be specified",
@@ -95,9 +95,9 @@ impl AzureCredential {
         self.validate()?;
         if self.is_valid() {
             let creds = ClientSecretCredential::new(
-                self.tenant_id.clone().unwrap(),
-                self.client_id.clone().unwrap(),
-                self.client_secret.clone().unwrap(),
+                self.azure_tenant_id.clone().unwrap(),
+                self.azure_client_id.clone().unwrap(),
+                self.azure_client_secret.clone().unwrap(),
                 TokenCredentialOptions::default(),
             );
             Ok(DefaultCredential::with_sources(vec![Box::new(creds)]))
@@ -113,18 +113,18 @@ impl AzureCredential {
 impl Default for AzureCredential {
     fn default() -> Self {
         Self {
-            tenant_id: None,
-            client_id: None,
-            client_secret: None,
+            azure_tenant_id: None,
+            azure_client_id: None,
+            azure_client_secret: None,
         }
     }
 }
 
 impl AzureConfig {
     fn get_kv_address(&self) -> Result<String> {
-        if let Some(url) = &self.keyvault_url {
+        if let Some(url) = &self.azure_keyvault_url {
             Ok(url.to_string())
-        } else if let Some(name) = &self.keyvault_name {
+        } else if let Some(name) = &self.azure_keyvault_name {
             Ok(format!("https://{}.vault.azure.net", name))
         } else {
             Err(AzureError::ConfigurationError(anyhow::Error::msg(
@@ -222,8 +222,8 @@ mod tests {
         let cfg = AzureConfig {
             enabled: true,
             credential: AzureCredential::default(),
-            keyvault_url: Some("url".to_string()),
-            keyvault_name: None,
+            azure_keyvault_url: Some("url".to_string()),
+            azure_keyvault_name: None,
         };
 
         assert_eq!("url", cfg.get_kv_address().unwrap());
@@ -234,8 +234,8 @@ mod tests {
         let cfg = AzureConfig {
             enabled: true,
             credential: AzureCredential::default(),
-            keyvault_name: Some("name".to_string()),
-            keyvault_url: None,
+            azure_keyvault_name: Some("name".to_string()),
+            azure_keyvault_url: None,
         };
 
         assert_eq!(
@@ -251,12 +251,12 @@ mod tests {
         let cfg = AzureConfig {
             enabled: true,
             credential: AzureCredential {
-                tenant_id: Some(env_var("KVENV_TENANT_ID").unwrap()),
-                client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
-                client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
+                azure_tenant_id: Some(env_var("KVENV_TENANT_ID").unwrap()),
+                azure_client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
+                azure_client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
             },
-            keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
-            keyvault_url: None,
+            azure_keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
+            azure_keyvault_url: None,
         };
         let proc_env = cfg
             .into_vault()
@@ -273,12 +273,12 @@ mod tests {
         let cfg = AzureConfig {
             enabled: true,
             credential: AzureCredential {
-                tenant_id: Some(env_var("KVENV_TENANT_ID").unwrap()),
-                client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
-                client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
+                azure_tenant_id: Some(env_var("KVENV_TENANT_ID").unwrap()),
+                azure_client_id: Some(env_var("KVENV_CLIENT_ID").unwrap()),
+                azure_client_secret: Some(env_var("KVENV_CLIENT_SECRET").unwrap()),
             },
-            keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
-            keyvault_url: None,
+            azure_keyvault_name: Some(env_var("KVENV_KEYVAULT_NAME").unwrap()),
+            azure_keyvault_url: None,
         };
         let proc_env = cfg
             .into_vault()
