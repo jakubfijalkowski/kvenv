@@ -1,12 +1,14 @@
 use anyhow::Result;
 use clap::{ArgGroup, Clap};
 
+mod aws;
 mod azure;
 mod convert;
 mod google;
 mod process_env;
 
-use azure::*;
+use aws::AWSConfig;
+use azure::AzureConfig;
 use google::GoogleConfig;
 pub use process_env::ProcessEnv;
 
@@ -68,7 +70,7 @@ impl Default for DataConfig {
 #[derive(Clap, Debug)]
 #[clap(
     group = ArgGroup::new("cloud")
-        .args(&["azure", "google"])
+        .args(&["azure", "google", "aws"])
         .required(true)
         .multiple(false),
 
@@ -81,14 +83,19 @@ pub struct EnvConfig {
     google: GoogleConfig,
 
     #[clap(flatten)]
+    aws: AWSConfig,
+
+    #[clap(flatten)]
     data: DataConfig,
 }
 
 impl EnvConfig {
     fn into_run_config(self) -> Result<(Box<dyn Vault>, DataConfig)> {
-        debug_assert!(self.azure.is_enabled() ^ self.google.is_enabled());
+        debug_assert!(self.azure.is_enabled() ^ self.google.is_enabled() ^ self.aws.is_enabled());
         if self.azure.is_enabled() {
             Ok((Box::new(self.azure.into_vault()?), self.data))
+        } else if self.aws.is_enabled() {
+            Ok((Box::new(self.aws.into_vault()?), self.data))
         } else {
             Ok((Box::new(self.google.into_vault()?), self.data))
         }
