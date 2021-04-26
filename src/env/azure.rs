@@ -76,12 +76,15 @@ pub type Result<T, E = AzureError> = std::result::Result<T, E>;
 
 impl AzureCredential {
     fn is_valid(&self) -> bool {
-        self.azure_tenant_id.is_some() && self.azure_client_id.is_some() && self.azure_client_secret.is_some()
+        self.azure_tenant_id.is_some()
+            && self.azure_client_id.is_some()
+            && self.azure_client_secret.is_some()
     }
 
     fn validate(&self) -> Result<()> {
-        let has_some =
-            self.azure_tenant_id.is_some() || self.azure_client_id.is_some() || self.azure_client_secret.is_some();
+        let has_some = self.azure_tenant_id.is_some()
+            || self.azure_client_id.is_some()
+            || self.azure_client_secret.is_some();
         if has_some && !self.is_valid() {
             Err(AzureError::ConfigurationError(anyhow::Error::msg(
                 "if you want to use CLI-passed credentials, all need to be specified",
