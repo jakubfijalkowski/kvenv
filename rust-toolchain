@@ -1,0 +1,4 @@
+[toolchain]
+channel = "stable"
+components = [ "rustc", "cargo", "rustfmt", "clippy" ]
+targets = [ "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl" ]
