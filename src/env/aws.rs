@@ -12,7 +12,7 @@ use thiserror::Error;
 use super::{convert::decode_env_from_json, Vault, VaultConfig};
 
 #[derive(Clap, Debug)]
-pub struct AWSConfig {
+pub struct AwsConfig {
     /// Use AWS Secrets Manager.
     #[clap(name = "aws", long = "aws", requires = "aws-region")]
     enabled: bool,
@@ -43,7 +43,7 @@ pub struct AWSConfig {
 }
 
 #[derive(Error, Debug)]
-pub enum AWSError {
+pub enum AwsError {
     #[error("rusoto HttpClient error")]
     TlsError(#[source] TlsError),
     #[error("rusoto HttpClient error")]
@@ -58,21 +58,21 @@ pub enum AWSError {
     NoSecrets,
 }
 
-pub type Result<T, E = AWSError> = std::result::Result<T, E>;
+pub type Result<T, E = AwsError> = std::result::Result<T, E>;
 
-pub struct AWSVault {
+pub struct AwsVault {
     client: SecretsManagerClient,
 }
 
-impl VaultConfig for AWSConfig {
-    type Vault = AWSVault;
+impl VaultConfig for AwsConfig {
+    type Vault = AwsVault;
 
     fn is_enabled(&self) -> bool {
         self.enabled
     }
 
     fn into_vault(self) -> anyhow::Result<Self::Vault> {
-        let http_client = HttpClient::new().map_err(AWSError::TlsError)?;
+        let http_client = HttpClient::new().map_err(AwsError::TlsError)?;
         if let Some(key_id) = self.aws_access_key_id {
             let secret = self.aws_secret_access_key.unwrap();
             let provider = StaticProvider::new_minimal(key_id, secret);
@@ -84,7 +84,7 @@ impl VaultConfig for AWSConfig {
                 ),
             })
         } else {
-            let provider = DefaultCredentialsProvider::new().map_err(AWSError::CredentialsError)?;
+            let provider = DefaultCredentialsProvider::new().map_err(AwsError::CredentialsError)?;
             Ok(Self::Vault {
                 client: SecretsManagerClient::new_with(
                     http_client,
@@ -96,7 +96,7 @@ impl VaultConfig for AWSConfig {
     }
 }
 
-impl Vault for AWSVault {
+impl Vault for AwsVault {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
         let list = self
@@ -106,10 +106,10 @@ impl Vault for AWSVault {
                 ..Default::default()
             })
             .await
-            .map_err(AWSError::ListSecretsError)?;
+            .map_err(AwsError::ListSecretsError)?;
         let secrets: Vec<_> = list
             .secret_list
-            .ok_or(AWSError::NoSecrets)?
+            .ok_or(AwsError::NoSecrets)?
             .into_iter()
             .filter(|x| {
                 x.name
@@ -128,7 +128,7 @@ impl Vault for AWSVault {
                     version_stage: None,
                 })
                 .await
-                .map_err(AWSError::GetSecretError)?;
+                .map_err(AwsError::GetSecretError)?;
             let value = decode_secret(secret)?;
             decode_env_from_json(&name, value)
         });
@@ -146,7 +146,7 @@ impl Vault for AWSVault {
                 version_stage: None,
             })
             .await
-            .map_err(AWSError::GetSecretError)?;
+            .map_err(AwsError::GetSecretError)?;
         let value = decode_secret(secret)?;
         decode_env_from_json(secret_name, value)
     }
@@ -159,7 +159,7 @@ fn decode_secret(secret: GetSecretValueResponse) -> Result<Value> {
         .map(|x| serde_json::from_str(&x[..]))
         .or_else(|| secret.secret_binary.map(|b| serde_json::from_slice(&b)))
         .unwrap()
-        .map_err(AWSError::DecodeError)
+        .map_err(AwsError::DecodeError)
 }
 
 #[cfg(test)]
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn integration_tests_single_value() {
         use std::env::var as env_var;
-        let cfg = AWSConfig {
+        let cfg = AwsConfig {
             enabled: true,
             aws_access_key_id: Some(env_var("AWS_ACCESS_KEY_ID").unwrap()),
             aws_secret_access_key: Some(env_var("AWS_SECRET_ACCESS_KEY").unwrap()),
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn integration_tests_prefixed() {
         use std::env::var as env_var;
-        let cfg = AWSConfig {
+        let cfg = AwsConfig {
             enabled: true,
             aws_access_key_id: Some(env_var("AWS_ACCESS_KEY_ID").unwrap()),
             aws_secret_access_key: Some(env_var("AWS_SECRET_ACCESS_KEY").unwrap()),

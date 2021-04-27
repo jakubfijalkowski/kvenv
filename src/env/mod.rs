@@ -7,7 +7,7 @@ mod convert;
 mod google;
 mod process_env;
 
-use aws::AWSConfig;
+use aws::AwsConfig;
 use azure::AzureConfig;
 use google::GoogleConfig;
 pub use process_env::ProcessEnv;
@@ -83,7 +83,7 @@ pub struct EnvConfig {
     google: GoogleConfig,
 
     #[clap(flatten)]
-    aws: AWSConfig,
+    aws: AwsConfig,
 
     #[clap(flatten)]
     data: DataConfig,
