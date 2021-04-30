@@ -118,6 +118,11 @@ jobs:
         target:
         - x86_64-unknown-linux-gnu
         - x86_64-unknown-linux-musl
+        features:
+        - default
+        - azure
+        - aws
+        - google
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -131,7 +136,7 @@ jobs:
         with:
           use-cross: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
           command: build
-          args: --release --target ${{ matrix.target }}
+          args: --release --no-default-features --features ${{ matrix.features }} --target ${{ matrix.target }}
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v1
         with:
@@ -152,5 +157,5 @@ jobs:
         with:
           upload_url: ${{ steps.get_release_info.outputs.upload_url }}
           asset_path: ./target/${{ matrix.target }}/release/kvenv
-          asset_name: kvenv-${{ matrix.target }}
+          asset_name: kvenv-${{ matrix.target }}-${{ matrix.features }}
           asset_content_type: application/octet-stream
