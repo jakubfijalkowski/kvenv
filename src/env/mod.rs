@@ -1,15 +1,23 @@
 use anyhow::Result;
 use clap::{ArgGroup, Clap};
 
+#[cfg(feature = "aws")]
 mod aws;
+#[cfg(feature = "azure")]
 mod azure;
-mod convert;
+#[cfg(feature = "google")]
 mod google;
+
+mod convert;
 mod process_env;
 
+#[cfg(feature = "aws")]
 use aws::AwsConfig;
+#[cfg(feature = "azure")]
 use azure::AzureConfig;
+#[cfg(feature = "google")]
 use google::GoogleConfig;
+
 pub use process_env::ProcessEnv;
 
 pub trait Vault {
@@ -68,22 +76,19 @@ impl Default for DataConfig {
 }
 
 #[derive(Clap, Debug)]
-#[clap(
-    group = ArgGroup::new("cloud")
-        .args(&["azure", "google", "aws"])
-        .required(true)
-        .multiple(false),
-
-)]
+#[clap(group = ArgGroup::new("cloud").required(true).multiple(false))]
 pub struct EnvConfig {
+    #[cfg(feature = "aws")]
+    #[clap(flatten)]
+    aws: AwsConfig,
+
+    #[cfg(feature = "azure")]
     #[clap(flatten)]
     azure: AzureConfig,
 
+    #[cfg(feature = "google")]
     #[clap(flatten)]
     google: GoogleConfig,
-
-    #[clap(flatten)]
-    aws: AwsConfig,
 
     #[clap(flatten)]
     data: DataConfig,
@@ -91,14 +96,25 @@ pub struct EnvConfig {
 
 impl EnvConfig {
     fn into_run_config(self) -> Result<(Box<dyn Vault>, DataConfig)> {
-        debug_assert!(self.azure.is_enabled() ^ self.google.is_enabled() ^ self.aws.is_enabled());
-        if self.azure.is_enabled() {
-            Ok((Box::new(self.azure.into_vault()?), self.data))
-        } else if self.aws.is_enabled() {
-            Ok((Box::new(self.aws.into_vault()?), self.data))
-        } else {
-            Ok((Box::new(self.google.into_vault()?), self.data))
+        #[cfg(feature = "aws")]
+        if self.aws.is_enabled() {
+            return Ok((Box::new(self.aws.into_vault()?), self.data));
         }
+
+        #[cfg(feature = "azure")]
+        if self.azure.is_enabled() {
+            return Ok((Box::new(self.azure.into_vault()?), self.data));
+        }
+
+        #[cfg(feature = "google")]
+        if self.google.is_enabled() {
+            return Ok((Box::new(self.google.into_vault()?), self.data));
+        }
+
+        #[cfg(not(any(feature = "aws", feature = "azure", feature = "google")))]
+        compile_error!("no cloud configured");
+
+        unreachable!()
     }
 }
 

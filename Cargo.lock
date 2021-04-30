@@ -677,7 +677,6 @@ dependencies = [
  "jsonwebtoken",
  "serde",
  "serde_json",
- "tonic",
  "url",
 ]
 

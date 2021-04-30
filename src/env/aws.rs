@@ -14,7 +14,7 @@ use super::{convert::decode_env_from_json, Vault, VaultConfig};
 #[derive(Clap, Debug)]
 pub struct AwsConfig {
     /// Use AWS Secrets Manager.
-    #[clap(name = "aws", long = "aws", requires = "aws-region")]
+    #[clap(name = "aws", long = "aws", group = "cloud", requires = "aws-region")]
     enabled: bool,
 
     /// [AWS] The Access Key Id. Requires `secret_access_key` if provided. If not specified,

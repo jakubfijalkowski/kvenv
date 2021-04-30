@@ -32,7 +32,7 @@ pub struct AzureCredential {
 #[clap(group = ArgGroup::new("keyvault"))]
 pub struct AzureConfig {
     /// Use Azure Key Vault.
-    #[clap(name = "azure", long = "azure", requires = "keyvault")]
+    #[clap(name = "azure", long = "azure", group = "cloud", requires = "keyvault")]
     enabled: bool,
 
     #[clap(flatten)]

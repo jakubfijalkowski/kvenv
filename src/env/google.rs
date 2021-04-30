@@ -22,7 +22,12 @@ use super::{convert::decode_env_from_json, Vault, VaultConfig};
 #[clap(group = ArgGroup::new("google_creds"))]
 pub struct GoogleConfig {
     /// Use Google Secret Manager.
-    #[clap(name = "google", long = "google", requires = "google-project")]
+    #[clap(
+        name = "google",
+        long = "google",
+        group = "cloud",
+        requires = "google-project"
+    )]
     enabled: bool,
 
     /// [Google] The path to credentials file. Leave blank to use gouth default credentials

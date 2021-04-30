@@ -26,6 +26,7 @@ pub fn value_as_string(name: &str, v: Value) -> Result<String> {
     }
 }
 
+#[allow(dead_code)]
 pub fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
     let name = name[prefix.len()..].replace("-", "_");
     as_valid_env_name(name)
