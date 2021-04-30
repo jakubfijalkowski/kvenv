@@ -2,13 +2,14 @@ kvenv
 =====
 
 `kvenv` is a simple command-line utility written in Rust that allows running arbitrary command with
-a custom environment that is loaded from Azure KeyVault.
+a custom environment that is loaded from Azure KeyVault, GCP Secret Manager or AWS Secrets Manager.
 
 Note: the tool is early stage but should be usable already
 
 ## Example usage
 ```sh
 $ kvenv cache \
+    --azure
     --tenant-id e96760c2-66ca-430e-9ecc-4556eeee59d7 \ # Tenant ID
     --client-id 54bdd66e-b650-4ad8-8a37-2c135cd5f5ff \ # Application (Client) ID
     --client-secret appsecret \ # The 'password' or 'secret' of the application
@@ -24,6 +25,7 @@ or
 
 ```sh
 $ kvenv run-in \
+    --azure
     --tenant-id e96760c2-66ca-430e-9ecc-4556eeee59d7 \ # Tenant ID
     --client-id 54bdd66e-b650-4ad8-8a37-2c135cd5f5ff \ # Application (Client) ID
     --client-secret appsecret \ # The 'password' or 'secret' of the application
@@ -48,6 +50,8 @@ Explanatory post is coming soon.
 - [x] `run-with` with direct env credentials (a.k.a `run-in`)
 - [ ] Better documentation
 - [x] Integration tests
+- [x] GCP Secret Manager support
+- [x] AWS Secrets Manager support
 
 ## Environment format
 
