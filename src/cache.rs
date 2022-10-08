@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Clap, ValueHint};
+use clap::{Args, command, arg, ValueHint};
 use std::{fs, io, path::PathBuf};
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -9,35 +9,33 @@ use crate::env;
 #[derive(Error, Debug)]
 pub enum CacheError {
     #[error("cannot load the environment")]
-    LoadError(#[from] anyhow::Error),
-
+    Load(#[from] anyhow::Error),
     #[error("cannot store the resulting env file")]
-    IoError(#[from] io::Error),
-
+    Io(#[from] io::Error),
     #[error("cannot store the resulting env file - there was a problem during serialization")]
-    SerializationError(#[from] serde_json::Error),
+    Serialization(#[from] serde_json::Error),
 }
 
 /// Caches the environment variables from KeyVault into local file.
-#[derive(Clap, Debug)]
+#[derive(Args, Debug)]
 pub struct Cache {
-    #[clap(flatten)]
+    #[command(flatten)]
     env: env::EnvConfig,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     output_file: OutputFileConfig,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Args, Debug)]
 pub struct OutputFileConfig {
     /// The output file where cached configuration will be saved. Defaults to random temporary file
     /// if not specified.
-    #[clap(short = 'f', long, parse(from_os_str), value_hint = ValueHint::FilePath, group = "output")]
+    #[arg(short = 'f', long, value_parser, value_hint = ValueHint::FilePath, group = "output")]
     output_file: Option<PathBuf>,
 
     /// The output directory where cached configuration will be saved. If specified, a random file
     /// will be created there.
-    #[clap(short = 'd', long, parse(from_os_str), value_hint = ValueHint::DirPath, group = "output")]
+    #[arg(short = 'd', long, value_parser, value_hint = ValueHint::DirPath, group = "output")]
     output_dir: Option<PathBuf>,
 }
 
@@ -48,7 +46,7 @@ enum OutputFile {
 
 fn get_output_file(cfg: OutputFileConfig) -> Result<OutputFile> {
     if let Some(f) = cfg.output_file {
-        let file = fs::File::create(&f).map_err(CacheError::IoError)?;
+        let file = fs::File::create(&f).map_err(CacheError::Io)?;
         Ok(OutputFile::Direct(file, f))
     } else {
         let mut b = tempfile::Builder::new();
@@ -58,7 +56,7 @@ fn get_output_file(cfg: OutputFileConfig) -> Result<OutputFile> {
         } else {
             b.tempfile()
         };
-        let file = file.map_err(CacheError::IoError)?;
+        let file = file.map_err(CacheError::Io)?;
         Ok(OutputFile::Temp(file))
     }
 }
@@ -66,20 +64,20 @@ fn get_output_file(cfg: OutputFileConfig) -> Result<OutputFile> {
 fn store_env(e: env::ProcessEnv, out_file: OutputFile) -> Result<PathBuf> {
     match out_file {
         OutputFile::Direct(f, p) => {
-            e.to_writer(f).map_err(CacheError::SerializationError)?;
+            e.to_writer(f).map_err(CacheError::Serialization)?;
             Ok(p)
         }
         OutputFile::Temp(mut t) => {
             e.to_writer(t.as_file_mut())
-                .map_err(CacheError::SerializationError)?;
-            let (_, p) = t.keep().map_err(|e| CacheError::IoError(e.error))?;
+                .map_err(CacheError::Serialization)?;
+            let (_, p) = t.keep().map_err(|e| CacheError::Io(e.error))?;
             Ok(p.as_path().to_owned())
         }
     }
 }
 
 pub fn run_cache(c: Cache) -> Result<()> {
-    let cached_env = env::download_env(c.env).map_err(CacheError::LoadError)?;
+    let cached_env = env::download_env(c.env).map_err(CacheError::Load)?;
     let out_file = get_output_file(c.output_file)?;
     let path = store_env(cached_env, out_file)?;
     println!("{}", path.display());

@@ -1,74 +1,66 @@
-use clap::{ArgGroup, ArgSettings, Clap};
-use googapis::{
-    google::cloud::secretmanager::v1::{
-        secret_manager_service_client::SecretManagerServiceClient, AccessSecretVersionRequest,
-        ListSecretsRequest, SecretPayload,
-    },
-    CERTIFICATES,
+use clap::{arg, ArgGroup, Args};
+use google_secretmanager1::{
+    api::SecretPayload, hyper, hyper::client::HttpConnector, hyper_rustls,
+    hyper_rustls::HttpsConnector, oauth2,
 };
-use gouth::Token;
 use serde_json::Value;
-use std::{path::PathBuf, string::FromUtf8Error};
+use std::path::PathBuf;
 use thiserror::Error;
-use tonic::{
-    metadata::MetadataValue,
-    transport::{Certificate, Channel, ClientTlsConfig},
-    Request,
-};
 
 use super::{convert::decode_env_from_json, Vault, VaultConfig};
 
-#[derive(Clap, Debug)]
-#[clap(group = ArgGroup::new("google_creds"))]
+type SecretManager = google_secretmanager1::SecretManager<HttpsConnector<HttpConnector>>;
+
+#[derive(Args, Debug)]
+#[command(group = ArgGroup::new("google_creds"))]
 pub struct GoogleConfig {
     /// Use Google Secret Manager.
-    #[clap(
+    #[arg(
         name = "google",
         long = "google",
         group = "cloud",
-        requires = "google-project"
+        requires = "google_project",
+        display_order = 300
     )]
     enabled: bool,
 
-    /// [Google] The path to credentials file. Leave blank to use gouth default credentials
+    /// [Google] The path to credentials file. Leave blank to use efault credentials
     /// resolution. Cannot be used with `credentials-json`.
-    #[clap(
+    #[arg(
         long,
-        parse(from_os_str),
+        value_parser,
         env = "GOOGLE_APPLICATION_CREDENTIALS",
-        display_order = 110,
+        display_order = 301,
         group = "google_creds"
     )]
     google_credentials_file: Option<PathBuf>,
 
-    /// [Google] The credentials JSON. Leave blank to use gouth default credentials resolution.
+    /// [Google] The credentials JSON. Leave blank to use default credentials resolution.
     /// Cannot be used with `credentials-file`.
-    #[clap(
+    #[arg(
         long,
         env = "GOOGLE_APPLICATION_CREDENTIALS_JSON",
-        setting = ArgSettings::HideEnvValues,
-        display_order = 111,
+        hide_env_values = true,
+        display_order = 302,
         group = "google_creds"
     )]
     google_credentials_json: Option<String>,
 
     /// [Google] Google project to use.
-    #[clap(long, env = "GOOGLE_PROJECT", display_order = 112)]
+    #[clap(long, env = "GOOGLE_PROJECT", display_order = 303)]
     google_project: Option<String>,
 }
 
 #[derive(Error, Debug)]
 pub enum GoogleError {
-    #[error("Tonic configuration error")]
-    TonicError(#[source] tonic::transport::Error),
     #[error("Google SA configuration is invalid")]
-    ConfigurationError(#[source] gouth::Error),
-    #[error("cannot load secret from Secret Manager")]
-    SecretManagerError(#[source] tonic::Status),
-    #[error("the value is not valid UTF-8 string")]
-    InvalidString(#[source] FromUtf8Error),
+    ConfigurationError(#[source] std::io::Error),
+    #[error("secret manager operation failed")]
+    SecretManagerError(#[source] google_secretmanager1::Error),
     #[error("the secret is empty")]
     EmptySecret,
+    #[error("there are no secrets in the project")]
+    NoSecrets,
 }
 
 pub type Result<T, E = GoogleError> = std::result::Result<T, E>;
@@ -86,72 +78,85 @@ impl VaultConfig for GoogleConfig {
 }
 
 impl GoogleConfig {
-    async fn to_client(&self) -> Result<SecretManagerServiceClient<Channel>> {
-        let tls_config = ClientTlsConfig::new()
-            .ca_certificate(Certificate::from_pem(CERTIFICATES))
-            .domain_name("secretmanager.googleapis.com");
-
-        let channel = Channel::from_static("https://secretmanager.googleapis.com")
-            .tls_config(tls_config)
-            .map_err(GoogleError::TonicError)?
-            .connect()
+    async fn to_manager(&self) -> Result<SecretManager> {
+        let auth = self
+            .to_authenticator()
             .await
-            .map_err(GoogleError::TonicError)?;
-
-        let token = self.to_token()?;
-
-        let client = SecretManagerServiceClient::with_interceptor(
-            channel,
-            move |mut req: tonic::Request<()>| {
-                let token = token
-                    .header_value()
-                    .map_err(|e| tonic::Status::unknown(e.to_string()))?;
-                let meta = MetadataValue::from_str(&*token)
-                    .map_err(|e| tonic::Status::unknown(e.to_string()))?;
-                req.metadata_mut().insert("authorization", meta);
-                Ok(req)
-            },
+            .map_err(GoogleError::ConfigurationError)?;
+        let manager = SecretManager::new(
+            hyper::Client::builder().build(
+                hyper_rustls::HttpsConnectorBuilder::new()
+                    .with_native_roots()
+                    .https_or_http()
+                    .enable_http1()
+                    .enable_http2()
+                    .build(),
+            ),
+            auth,
         );
-
-        Ok(client)
+        Ok(manager)
     }
 
-    fn to_token(&self) -> Result<Token> {
-        let token = if let Some(path) = &self.google_credentials_file {
-            gouth::Builder::new().file(path).build()
+    async fn to_authenticator(
+        &self,
+    ) -> std::io::Result<oauth2::authenticator::Authenticator<HttpsConnector<HttpConnector>>> {
+        if let Some(path) = &self.google_credentials_file {
+            let key = oauth2::read_service_account_key(path).await?;
+            let auth = oauth2::ServiceAccountAuthenticator::builder(key)
+                .build()
+                .await?;
+            Ok(auth)
         } else if let Some(json) = &self.google_credentials_json {
-            gouth::Builder::new().json(json).build()
+            let key = oauth2::parse_service_account_key(json)?;
+            let auth = oauth2::ServiceAccountAuthenticator::builder(key)
+                .build()
+                .await?;
+            Ok(auth)
         } else {
-            Token::new()
-        };
-        token.map_err(GoogleError::ConfigurationError)
+            let opts = oauth2::ApplicationDefaultCredentialsFlowOpts::default();
+            let auth = match oauth2::ApplicationDefaultCredentialsAuthenticator::builder(opts).await
+            {
+                oauth2::authenticator::ApplicationDefaultCredentialsTypes::ServiceAccount(auth) => {
+                    auth.build().await?
+                }
+                oauth2::authenticator::ApplicationDefaultCredentialsTypes::InstanceMetadata(
+                    auth,
+                ) => auth.build().await?,
+            };
+            Ok(auth)
+        }
     }
 }
 
 impl Vault for GoogleConfig {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let mut client = self.to_client().await?;
+        let mut manager = self.to_manager().await?;
         let project = self.google_project.as_ref().unwrap();
-        let response = client
-            .list_secrets(Request::new(ListSecretsRequest {
-                parent: format!("projects/{}", project),
-                page_size: 25000,
-                page_token: "".to_string(),
-            }))
+        let response = manager
+            .projects()
+            .secrets_list(project)
+            .page_size(25000)
+            .doit()
             .await
             .map_err(GoogleError::SecretManagerError)?;
         let secrets: Vec<_> = response
-            .into_inner()
+            .1
             .secrets
+            .ok_or(GoogleError::NoSecrets)?
             .into_iter()
-            .filter(|f| self.secret_matches(prefix, &f.name))
+            .filter(|f| f.name.is_some())
+            .filter(|f| self.secret_matches(prefix, f.name.as_ref().unwrap()))
             .collect();
         let mut from_kv = Vec::with_capacity(secrets.len());
         for secret in secrets {
-            let value = self.get_secret_full_name(&mut client, &secret.name).await?;
-            let value = String::from_utf8(value.data).map_err(GoogleError::InvalidString)?;
-            let name = self.strip_prefix(prefix, &secret.name).to_string();
+            let value = self
+                .get_secret_full_name(&mut manager, secret.name.as_ref().unwrap())
+                .await?;
+            let value = value.data.ok_or(GoogleError::EmptySecret)?;
+            let name = self
+                .strip_prefix(prefix, secret.name.as_ref().unwrap())
+                .to_string();
             from_kv.push((name, value));
         }
         Ok(from_kv)
@@ -159,9 +164,10 @@ impl Vault for GoogleConfig {
 
     #[tokio::main]
     async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let mut client = self.to_client().await?;
-        let payload = self.get_secret(&mut client, secret_name).await?;
-        let value: Value = serde_json::from_slice(&payload.data)?;
+        let mut manager = self.to_manager().await?;
+        let secret = self.get_secret(&mut manager, secret_name).await?;
+        let data = secret.data.ok_or(GoogleError::EmptySecret)?;
+        let value: Value = serde_json::from_str(&data)?;
         decode_env_from_json(secret_name, value)
     }
 }
@@ -182,7 +188,7 @@ impl GoogleConfig {
 
     async fn get_secret(
         &self,
-        client: &mut SecretManagerServiceClient<Channel>,
+        client: &mut SecretManager,
         secret_name: &str,
     ) -> Result<SecretPayload> {
         self.get_secret_full_name(
@@ -198,17 +204,16 @@ impl GoogleConfig {
 
     async fn get_secret_full_name(
         &self,
-        client: &mut SecretManagerServiceClient<Channel>,
+        manager: &mut SecretManager,
         name: &str,
     ) -> Result<SecretPayload> {
-        let response = client
-            .access_secret_version(Request::new(AccessSecretVersionRequest {
-                name: format!("{}/versions/latest", name),
-            }))
+        manager
+            .projects()
+            .secrets_versions_access(&format!("{}/versions/latest", name))
+            .doit()
             .await
-            .map_err(GoogleError::SecretManagerError)?;
-        response
-            .into_inner()
+            .map_err(GoogleError::SecretManagerError)?
+            .1
             .payload
             .ok_or(GoogleError::EmptySecret)
     }

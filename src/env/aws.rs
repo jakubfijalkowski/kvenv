@@ -1,4 +1,4 @@
-use clap::{ArgSettings, Clap};
+use clap::{arg, Args};
 use futures::future::try_join_all;
 use rusoto_core::{request::TlsError, HttpClient, Region};
 use rusoto_credential::{CredentialsError, DefaultCredentialsProvider, StaticProvider};
@@ -11,34 +11,40 @@ use thiserror::Error;
 
 use super::{convert::decode_env_from_json, Vault, VaultConfig};
 
-#[derive(Clap, Debug)]
+#[derive(Args, Debug)]
 pub struct AwsConfig {
     /// Use AWS Secrets Manager.
-    #[clap(name = "aws", long = "aws", group = "cloud", requires = "aws-region")]
+    #[arg(
+        name = "aws",
+        long = "aws",
+        group = "cloud",
+        requires = "aws_region",
+        display_order = 100
+    )]
     enabled: bool,
 
     /// [AWS] The Access Key Id. Requires `secret_access_key` if provided. If not specified,
     /// default rusoto credential matching is used.
-    #[clap(
+    #[arg(
         long,
         env = "AWS_ACCESS_KEY_ID",
-        display_order = 120,
-        requires = "aws-secret-access-key"
+        display_order = 101,
+        requires = "aws_secret_access_key"
     )]
     aws_access_key_id: Option<String>,
 
     /// [AWS] The Secret Access Key. Requires `access_key_id` if provided. If not specified,
     /// default rusoto credential matching is used.
-    #[clap(
+    #[arg(
         long,
         env = "AWS_SECRET_ACCESS_KEY",
-        setting = ArgSettings::HideEnvValues,
-        display_order = 121,
+        hide_env_values = true,
+        display_order = 102
     )]
     aws_secret_access_key: Option<String>,
 
     /// [AWS] AWS region.
-    #[clap(long, env = "AWS_REGION", display_order = 122)]
+    #[arg(long, env = "AWS_REGION", display_order = 122)]
     aws_region: Option<Region>,
 }
 
@@ -107,7 +113,7 @@ impl Vault for AwsVault {
             })
             .await
             .map_err(AwsError::ListSecretsError)?;
-        let secrets: Vec<_> = list
+        let results = list
             .secret_list
             .ok_or(AwsError::NoSecrets)?
             .into_iter()
@@ -117,21 +123,20 @@ impl Vault for AwsVault {
                     .map(|n| n.starts_with(prefix))
                     .unwrap_or(false)
             })
-            .collect();
-        let results = secrets.into_iter().map(|s| async {
-            let name = s.name.unwrap();
-            let secret = self
-                .client
-                .get_secret_value(GetSecretValueRequest {
-                    secret_id: name.clone(),
-                    version_id: None,
-                    version_stage: None,
-                })
-                .await
-                .map_err(AwsError::GetSecretError)?;
-            let value = decode_secret(secret)?;
-            decode_env_from_json(&name, value)
-        });
+            .map(|s| async {
+                let name = s.name.unwrap();
+                let secret = self
+                    .client
+                    .get_secret_value(GetSecretValueRequest {
+                        secret_id: name.clone(),
+                        version_id: None,
+                        version_stage: None,
+                    })
+                    .await
+                    .map_err(AwsError::GetSecretError)?;
+                let value = decode_secret(secret)?;
+                decode_env_from_json(&name, value)
+            });
         let values: Vec<_> = try_join_all(results).await?.into_iter().flatten().collect();
         Ok(values)
     }

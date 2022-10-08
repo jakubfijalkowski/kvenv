@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{ArgSettings, Clap};
+use clap::{Args, arg};
 use thiserror::Error;
 
 use crate::env::{download_env, EnvConfig};
@@ -14,14 +14,13 @@ pub enum RunInError {
 }
 
 /// Runs the command with the specified argument using freshly downloaded environment.
-#[derive(Clap, Debug)]
-#[clap(name = "run-in")]
+#[derive(Args, Debug)]
 pub struct RunIn {
-    #[clap(flatten)]
+    #[command(flatten)]
     env: EnvConfig,
 
     /// The command to execute
-    #[clap(name = "COMMAND", required = true, setting = ArgSettings::Last)]
+    #[arg(name = "COMMAND", required = true)]
     command: Vec<String>,
 }
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{ArgGroup, Clap};
+use clap::{arg, ArgGroup, Args};
 
 #[cfg(feature = "aws")]
 mod aws;
@@ -31,21 +31,21 @@ pub trait VaultConfig {
     fn into_vault(self) -> Result<Self::Vault>;
 }
 
-#[derive(Clap, Debug)]
-#[clap(group = ArgGroup::new("secret").required(true))]
+#[derive(Args, Debug, Default)]
+#[command(group = ArgGroup::new("secret").required(true))]
 pub struct DataConfig {
     /// The name of the secret with the environment defined. Cannot be used along `secret-prefix`.
-    #[clap(
+    #[arg(
         short = 'n',
         long,
-        env = "KVENV_SECRET_NAME",
+        env_os = "KVENV_SECRET_NAME",
         group = "secret",
         display_order = 1
     )]
     secret_name: Option<String>,
 
-    /// The prefix of secrets with the environment variables. Cannot be used along `secret-name`.
-    #[clap(
+    /// The prefix of the secrets with the environment variables. Cannot be used along `secret-name`.
+    #[arg(
         short = 's',
         long,
         env = "KVENV_SECRET_PREFIX",
@@ -56,41 +56,30 @@ pub struct DataConfig {
 
     /// If set, `kvenv` will use OS's environment at the point in time when the environment is
     /// downloaded.
-    #[clap(short = 'e', long)]
+    #[arg(short = 'e', long)]
     snapshot_env: bool,
 
     /// Environment variables that should be masked by the subsequent calls to `with`.
-    #[clap(short, long, display_order = 3)]
+    #[arg(short, long, display_order = 3)]
     mask: Vec<String>,
 }
 
-impl Default for DataConfig {
-    fn default() -> Self {
-        Self {
-            secret_name: None,
-            secret_prefix: None,
-            snapshot_env: false,
-            mask: vec![],
-        }
-    }
-}
-
-#[derive(Clap, Debug)]
-#[clap(group = ArgGroup::new("cloud").required(true).multiple(false))]
+#[derive(Args, Debug)]
+#[command(group = ArgGroup::new("cloud").required(true).multiple(false))]
 pub struct EnvConfig {
     #[cfg(feature = "aws")]
-    #[clap(flatten)]
+    #[command(flatten)]
     aws: AwsConfig,
 
     #[cfg(feature = "azure")]
-    #[clap(flatten)]
+    #[command(flatten)]
     azure: AzureConfig,
 
     #[cfg(feature = "google")]
-    #[clap(flatten)]
+    #[command(flatten)]
     google: GoogleConfig,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     data: DataConfig,
 }
 

@@ -1,10 +1,13 @@
-use azure_identity::token_credentials::{
-    AzureCliCredential, ClientSecretCredential, DefaultCredential, ManagedIdentityCredential,
-    TokenCredentialOptions,
+use std::sync::Arc;
+
+use azure_core::auth::TokenCredential;
+use azure_identity::{
+    ClientSecretCredential, DefaultAzureCredentialBuilder, TokenCredentialOptions,
 };
-use azure_key_vault::{KeyClient, KeyVaultError};
-use clap::{ArgGroup, ArgSettings, Clap};
+use azure_security_keyvault::prelude::*;
+use clap::{arg, command, ArgGroup, Args};
 use futures::future::try_join_all;
+use futures::stream::StreamExt;
 use serde_json::Value;
 use thiserror::Error;
 
@@ -13,63 +16,68 @@ use super::{
     Vault, VaultConfig,
 };
 
-#[derive(Clap, Debug)]
-pub struct AzureCredential {
-    /// [Azure] The tenant id of the service principal used for authorization.
-    #[clap(long, env = "AZURE_TENANT_ID", display_order = 100)]
-    azure_tenant_id: Option<String>,
-
-    /// [Azure] The application id of the service principal used for authorization.
-    #[clap(long, env = "AZURE_CLIENT_ID", display_order = 101)]
-    azure_client_id: Option<String>,
-
-    /// [Azure] The secret of the service principal used for authorization.
-    #[clap(long, env = "AZURE_CLIENT_SECRET", setting = ArgSettings::HideEnvValues, display_order = 102)]
-    azure_client_secret: Option<String>,
-}
-
-#[derive(Clap, Debug)]
-#[clap(group = ArgGroup::new("keyvault"))]
+#[derive(Args, Debug)]
+#[command(group = ArgGroup::new("keyvault"))]
 pub struct AzureConfig {
     /// Use Azure Key Vault.
-    #[clap(name = "azure", long = "azure", group = "cloud", requires = "keyvault")]
+    #[arg(name = "azure", long = "azure", group = "cloud", requires = "keyvault", display_order = 200)]
     enabled: bool,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     credential: AzureCredential,
 
     /// [Azure] The name of Azure KeyVault (in the public cloud) where the secret lives. Cannot be
     /// used with `keyvault-url`.
-    #[clap(
+    #[arg(
         long,
         env = "AZURE_KEYVAULT_NAME",
         group = "keyvault",
-        display_order = 103
+        display_order = 201
     )]
     azure_keyvault_name: Option<String>,
 
     /// [Azure] The URL to the Azure KeyVault where the secret lives. Cannot be used with
     /// `keyvault-name`.
-    #[clap(
+    #[arg(
         long,
         env = "AZURE_KEYVAULT_URL",
         group = "keyvault",
-        display_order = 104
+        display_order = 202
     )]
     azure_keyvault_url: Option<String>,
+}
+
+#[derive(Args, Debug, Default)]
+pub struct AzureCredential {
+    /// [Azure] The tenant id of the service principal used for authorization.
+    #[arg(long, env = "AZURE_TENANT_ID", display_order = 203)]
+    azure_tenant_id: Option<String>,
+
+    /// [Azure] The application id of the service principal used for authorization.
+    #[arg(long, env = "AZURE_CLIENT_ID", display_order = 204)]
+    azure_client_id: Option<String>,
+
+    /// [Azure] The secret of the service principal used for authorization.
+    #[arg(
+        long,
+        env = "AZURE_CLIENT_SECRET",
+        hide_env_values = true,
+        display_order = 205
+    )]
+    azure_client_secret: Option<String>,
 }
 
 #[derive(Error, Debug)]
 pub enum AzureError {
     #[error("Azure configuration error")]
     ConfigurationError(#[source] anyhow::Error),
-    #[error("cannot load secret from keyvault")]
-    KeyVaultError(#[source] KeyVaultError),
+    #[error("Azure configuration error")]
+    AzureError(#[source] azure_core::Error),
 }
 
 pub struct AzureVault {
     kv_address: String,
-    credential: DefaultCredential,
+    credential: Arc<dyn TokenCredential>,
 }
 
 pub type Result<T, E = AzureError> = std::result::Result<T, E>;
@@ -94,31 +102,22 @@ impl AzureCredential {
         }
     }
 
-    fn to_credential(&self) -> Result<DefaultCredential> {
+    fn to_credential(&self) -> Result<Arc<dyn TokenCredential>> {
         self.validate()?;
         if self.is_valid() {
             let creds = ClientSecretCredential::new(
+                azure_core::new_http_client(),
                 self.azure_tenant_id.clone().unwrap(),
                 self.azure_client_id.clone().unwrap(),
                 self.azure_client_secret.clone().unwrap(),
                 TokenCredentialOptions::default(),
             );
-            Ok(DefaultCredential::with_sources(vec![Box::new(creds)]))
+            Ok(Arc::new(creds))
         } else {
-            Ok(DefaultCredential::with_sources(vec![
-                Box::new(ManagedIdentityCredential {}),
-                Box::new(AzureCliCredential {}),
-            ]))
-        }
-    }
-}
-
-impl Default for AzureCredential {
-    fn default() -> Self {
-        Self {
-            azure_tenant_id: None,
-            azure_client_id: None,
-            azure_client_secret: None,
+            let creds = DefaultAzureCredentialBuilder::new()
+                .exclude_environment_credential()
+                .build();
+            Ok(Arc::new(creds))
         }
     }
 }
@@ -155,53 +154,57 @@ impl VaultConfig for AzureConfig {
 }
 
 impl AzureVault {
-    fn get_client(&self) -> Result<KeyClient<'_, DefaultCredential>> {
-        KeyClient::new(&self.kv_address, &self.credential).map_err(AzureError::ConfigurationError)
+    fn get_client(&self) -> Result<SecretClient> {
+        SecretClient::new(&self.kv_address, self.credential.clone()).map_err(AzureError::AzureError)
     }
 }
 
 impl Vault for AzureVault {
     #[tokio::main]
     async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let mut client = self.get_client()?;
+        let client = self.get_client()?;
 
         let secrets = client
             .list_secrets()
+            .into_stream()
+            .collect::<Vec<_>>()
             .await
-            .map_err(AzureError::KeyVaultError)?;
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AzureError::AzureError)?;
         let secrets: Vec<_> = secrets
-            .iter()
-            .filter(|x| x.name().starts_with(&prefix))
+            .into_iter()
+            .flat_map(|x| x.value.into_iter().map(|x| x.id))
+            .filter(|x| x.starts_with(&prefix))
             .collect();
         let env_names = secrets
             .iter()
-            .map(|x| convert_env_name(&prefix, x.name()))
+            .map(|x| convert_env_name(prefix, x))
             .collect::<anyhow::Result<Vec<_>>>()?;
         let env_values = secrets.iter().map(|s| {
             let client = self.get_client();
             async move {
                 client?
-                    .get_secret(s.name())
+                    .get(s)
+                    .into_future()
                     .await
-                    .map_err(AzureError::KeyVaultError)
+                    .map_err(AzureError::AzureError)
             }
         });
-        let env_values = try_join_all(env_values)
-            .await?
-            .into_iter()
-            .map(|x| x.value().to_owned());
+        let env_values = try_join_all(env_values).await?.into_iter().map(|x| x.value);
         let from_kv = env_names.into_iter().zip(env_values.into_iter()).collect();
         Ok(from_kv)
     }
 
     #[tokio::main]
     async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let mut client = self.get_client()?;
+        let client = self.get_client()?;
         let secret = client
-            .get_secret(secret_name)
+            .get(secret_name)
+            .into_future()
             .await
-            .map_err(AzureError::KeyVaultError)?;
-        let value: Value = serde_json::from_str(secret.value())?;
+            .map_err(AzureError::AzureError)?;
+        let value: Value = serde_json::from_str(&secret.value)?;
         decode_env_from_json(secret_name, value)
     }
 }
