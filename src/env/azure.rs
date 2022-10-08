@@ -163,6 +163,11 @@ impl AzureVault {
     fn get_client(&self) -> Result<SecretClient> {
         SecretClient::new(&self.kv_address, self.credential.clone()).map_err(AzureError::AzureError)
     }
+
+    fn strip_prefix(name: &str) -> &str {
+        let idx = name.rfind('/').unwrap();
+        &name[(idx + 1)..]
+    }
 }
 
 impl Vault for AzureVault {
@@ -181,6 +186,7 @@ impl Vault for AzureVault {
         let secrets: Vec<_> = secrets
             .into_iter()
             .flat_map(|x| x.value.into_iter().map(|x| x.id))
+            .map(|x| AzureVault::strip_prefix(&x).to_string())
             .filter(|x| x.starts_with(&prefix))
             .collect();
         let env_names = secrets
