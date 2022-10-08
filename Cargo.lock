@@ -865,6 +865,7 @@ dependencies = [
  "azure_core",
  "azure_identity",
  "azure_security_keyvault",
+ "base64",
  "clap",
  "futures",
  "google-secretmanager1",

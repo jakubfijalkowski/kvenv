@@ -1,7 +1,6 @@
 use clap::{arg, ArgGroup, Args};
 use google_secretmanager1::{
-    api::SecretPayload, hyper, hyper::client::HttpConnector, hyper_rustls,
-    hyper_rustls::HttpsConnector, oauth2,
+    hyper, hyper::client::HttpConnector, hyper_rustls, hyper_rustls::HttpsConnector, oauth2,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -61,6 +60,8 @@ pub enum GoogleError {
     EmptySecret,
     #[error("there are no secrets in the project")]
     NoSecrets,
+    #[error("secret encoding is invalid")]
+    WrongEncoding(#[source] anyhow::Error),
 }
 
 pub type Result<T, E = GoogleError> = std::result::Result<T, E>;
@@ -135,8 +136,8 @@ impl Vault for GoogleConfig {
         let project = self.google_project.as_ref().unwrap();
         let response = manager
             .projects()
-            .secrets_list(project)
-            .page_size(25000)
+            .secrets_list(&format!("projects/{}", project))
+            .page_size(250)
             .doit()
             .await
             .map_err(GoogleError::SecretManagerError)?;
@@ -153,7 +154,6 @@ impl Vault for GoogleConfig {
             let value = self
                 .get_secret_full_name(&mut manager, secret.name.as_ref().unwrap())
                 .await?;
-            let value = value.data.ok_or(GoogleError::EmptySecret)?;
             let name = self
                 .strip_prefix(prefix, secret.name.as_ref().unwrap())
                 .to_string();
@@ -166,8 +166,7 @@ impl Vault for GoogleConfig {
     async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
         let mut manager = self.to_manager().await?;
         let secret = self.get_secret(&mut manager, secret_name).await?;
-        let data = secret.data.ok_or(GoogleError::EmptySecret)?;
-        let value: Value = serde_json::from_str(&data)?;
+        let value: Value = serde_json::from_str(&secret)?;
         decode_env_from_json(secret_name, value)
     }
 }
@@ -186,11 +185,7 @@ impl GoogleConfig {
         &self.strip_project(name)[prefix.len()..]
     }
 
-    async fn get_secret(
-        &self,
-        client: &mut SecretManager,
-        secret_name: &str,
-    ) -> Result<SecretPayload> {
+    async fn get_secret(&self, client: &mut SecretManager, secret_name: &str) -> Result<String> {
         self.get_secret_full_name(
             client,
             &format!(
@@ -206,8 +201,8 @@ impl GoogleConfig {
         &self,
         manager: &mut SecretManager,
         name: &str,
-    ) -> Result<SecretPayload> {
-        manager
+    ) -> Result<String> {
+        let data = manager
             .projects()
             .secrets_versions_access(&format!("{}/versions/latest", name))
             .doit()
@@ -215,7 +210,12 @@ impl GoogleConfig {
             .map_err(GoogleError::SecretManagerError)?
             .1
             .payload
-            .ok_or(GoogleError::EmptySecret)
+            .ok_or(GoogleError::EmptySecret)?
+            .data
+            .ok_or(GoogleError::EmptySecret)?;
+        let raw_bytes =
+            base64::decode(&data).map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))?;
+        String::from_utf8(raw_bytes).map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))
     }
 }
 
@@ -322,11 +322,7 @@ mod tests {
         let cfg = GoogleConfig {
             enabled: true,
             google_credentials_file: None,
-            google_credentials_json: Some(
-                env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-                    .unwrap()
-                    .into(),
-            ),
+            google_credentials_json: Some(env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON").unwrap()),
             google_project: Some(env_var("GOOGLE_PROJECT").unwrap()),
         };
         let proc_env = cfg
@@ -344,11 +340,7 @@ mod tests {
         let cfg = GoogleConfig {
             enabled: true,
             google_credentials_file: None,
-            google_credentials_json: Some(
-                env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-                    .unwrap()
-                    .into(),
-            ),
+            google_credentials_json: Some(env_var("GOOGLE_APPLICATION_CREDENTIALS_JSON").unwrap()),
             google_project: Some(env_var("GOOGLE_PROJECT").unwrap()),
         };
         let proc_env = cfg
