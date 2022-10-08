@@ -20,7 +20,13 @@ use super::{
 #[command(group = ArgGroup::new("keyvault"))]
 pub struct AzureConfig {
     /// Use Azure Key Vault.
-    #[arg(name = "azure", long = "azure", group = "cloud", requires = "keyvault", display_order = 200)]
+    #[arg(
+        name = "azure",
+        long = "azure",
+        group = "cloud",
+        requires = "keyvault",
+        display_order = 200
+    )]
     enabled: bool,
 
     #[command(flatten)]

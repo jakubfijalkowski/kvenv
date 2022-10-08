@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{ValueHint, Args, arg};
+use clap::{arg, Args, ValueHint};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -47,8 +47,8 @@ fn load_env(path: &Path) -> Result<ProcessEnv> {
 pub fn run_with(cfg: RunWith) -> Result<std::convert::Infallible> {
     let env = load_env(&cfg.env_file)?;
 
-    let status = run::run_in_env(env, cfg.command)
-        .map_err(|x| anyhow::Error::new(RunWithError::Run(x)))?;
+    let status =
+        run::run_in_env(env, cfg.command).map_err(|x| anyhow::Error::new(RunWithError::Run(x)))?;
     if status.success() {
         if cfg.cleanup {
             fs::remove_file(&cfg.env_file).map_err(RunWithError::Cleanup)?;

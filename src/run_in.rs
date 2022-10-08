@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Args, arg};
+use clap::{arg, Args};
 use thiserror::Error;
 
 use crate::env::{download_env, EnvConfig};

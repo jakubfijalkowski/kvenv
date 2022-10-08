@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Args, command, arg, ValueHint};
+use clap::{arg, command, Args, ValueHint};
 use std::{fs, io, path::PathBuf};
 use tempfile::NamedTempFile;
 use thiserror::Error;
