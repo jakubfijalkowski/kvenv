@@ -187,7 +187,7 @@ impl Vault for AzureVault {
             .into_iter()
             .flat_map(|x| x.value.into_iter().map(|x| x.id))
             .map(|x| AzureVault::strip_prefix(&x).to_string())
-            .filter(|x| x.starts_with(&prefix))
+            .filter(|x| x.starts_with(prefix))
             .collect();
         let env_names = secrets
             .iter()
