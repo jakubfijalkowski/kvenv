@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2022-12-04)
+
+- Updated to Clap 4 - this changed what & how parameters are accepted
+- Added support for Hashicorp Vault
+
 ## 0.2.0 (2021-04-30)
 
 - Added support for ASP.NET Core-compatible key format
