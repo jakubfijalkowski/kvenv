@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use clap::{arg, command, ArgGroup, Args};
+use futures::future::try_join_all;
 use reqwest::{self, StatusCode};
 use serde::Deserialize;
 use thiserror::Error;
@@ -14,8 +15,8 @@ pub struct HashicorpVaultConfig {
     /// Use Hashicorp Vault.
     /// Vault mode works differently to other clouds. When "single secret" mode is selected, it
     /// interprets the document as a key-value document, where key is the environment variable
-    /// name.
-    /// When in perfixed mode, it uses the name of matched secret as a environment variable name.
+    /// name. When in perfixed mode, the contents of each secret is concatenated, creating one big
+    /// variables list.
     #[arg(
         name = "vault",
         long = "vault",
@@ -109,35 +110,78 @@ impl HashicorpVault {
             .map_err(anyhow::Error::new)
             .map_err(HashicorpVaultError::ConfigurationError)
     }
-}
 
-impl Vault for HashicorpVault {
-    fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
-        todo!()
-    }
-
-    #[tokio::main]
-    async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
-        let client = self.client().await?;
-        let response = client
-            .get(format!("{}/v1/secret/data/{}", self.address, secret_name))
-            .header("X-Vault-Token", &self.token)
-            .send()
-            .await
-            .map_err(HashicorpVaultError::HttpError)?;
-        handle_common_errors(secret_name, &response)?;
-
-        let data: SecretResponse = response
-            .json()
-            .await
-            .map_err(HashicorpVaultError::DeserializeError)?;
-        let result = data
+    fn parse_secrets(secret: SecretResponse) -> Result<Vec<(String, String)>, HashicorpVaultError> {
+        secret
             .data
             .data
             .into_iter()
             .map(|(k, v)| as_valid_env_name(k).map(|k| (k, v)))
             .collect::<anyhow::Result<Vec<_>>>()
-            .map_err(HashicorpVaultError::InvalidEnv)?;
+            .map_err(HashicorpVaultError::InvalidEnv)
+    }
+
+    async fn get_single_key(
+        &self,
+        client: &reqwest::Client,
+        secret_name: impl AsRef<str>,
+    ) -> Result<Vec<(String, String)>, HashicorpVaultError> {
+        let response = client
+            .get(format!(
+                "{}/v1/secret/data/{}",
+                self.address,
+                secret_name.as_ref()
+            ))
+            .header("X-Vault-Token", &self.token)
+            .send()
+            .await
+            .map_err(HashicorpVaultError::HttpError)?;
+        handle_common_errors(secret_name.as_ref(), &response)?;
+
+        let data: SecretResponse = response
+            .json()
+            .await
+            .map_err(HashicorpVaultError::DeserializeError)?;
+        Self::parse_secrets(data)
+    }
+}
+
+impl Vault for HashicorpVault {
+    #[tokio::main]
+    async fn download_prefixed(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
+        let client = self.client().await?;
+
+        let response = client
+            .get(format!("{}/v1/secret/metadata?list=true", self.address))
+            .header("X-Vault-Token", &self.token)
+            .send()
+            .await
+            .map_err(HashicorpVaultError::HttpError)?;
+        handle_common_errors(prefix, &response)?;
+
+        let list: ListResponse = response
+            .json()
+            .await
+            .map_err(HashicorpVaultError::DeserializeError)?;
+
+        let env_values = list
+            .data
+            .keys
+            .into_iter()
+            .filter(|p| p.starts_with(prefix))
+            .map(|s| self.get_single_key(&client, s));
+        let env_values: Vec<_> = try_join_all(env_values)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
+        Ok(env_values)
+    }
+
+    #[tokio::main]
+    async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
+        let client = self.client().await?;
+        let result = self.get_single_key(&client, secret_name).await?;
         Ok(result)
     }
 }
@@ -145,7 +189,7 @@ impl Vault for HashicorpVault {
 fn handle_common_errors(
     secret_name: &str,
     response: &reqwest::Response,
-) -> anyhow::Result<(), HashicorpVaultError> {
+) -> Result<(), HashicorpVaultError> {
     match response.status() {
         StatusCode::NOT_FOUND => Err(HashicorpVaultError::SecretNotFound(secret_name.to_string())),
         StatusCode::UNAUTHORIZED => Err(HashicorpVaultError::UnauthorizedError),
@@ -163,4 +207,14 @@ struct SecretResponse {
 #[derive(Deserialize, Debug)]
 struct Secret {
     pub data: HashMap<String, String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct ListResponse {
+    pub data: KeyList,
+}
+
+#[derive(Deserialize, Debug)]
+struct KeyList {
+    pub keys: Vec<String>,
 }

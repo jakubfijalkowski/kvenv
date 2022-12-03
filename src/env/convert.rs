@@ -16,6 +16,7 @@ pub fn as_valid_env_name(name: String) -> Result<String> {
     }
 }
 
+#[allow(dead_code)]
 pub fn value_as_string(name: &str, v: Value) -> Result<String> {
     match v {
         Value::String(s) => Ok(s),
@@ -32,6 +33,7 @@ pub fn convert_env_name(prefix: &str, name: &str) -> Result<String> {
     as_valid_env_name(name)
 }
 
+#[allow(dead_code)]
 pub fn decode_env_from_json(name: &str, value: Value) -> Result<Vec<(String, String)>> {
     match value {
         Value::Object(m) => m
