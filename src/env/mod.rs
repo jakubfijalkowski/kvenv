@@ -7,6 +7,8 @@ mod aws;
 mod azure;
 #[cfg(feature = "google")]
 mod google;
+#[cfg(feature = "vault")]
+mod vault;
 
 mod convert;
 mod process_env;
@@ -17,6 +19,8 @@ use aws::AwsConfig;
 use azure::AzureConfig;
 #[cfg(feature = "google")]
 use google::GoogleConfig;
+#[cfg(feature = "vault")]
+use vault::HashicorpVaultConfig;
 
 pub use process_env::ProcessEnv;
 
@@ -79,6 +83,10 @@ pub struct EnvConfig {
     #[command(flatten)]
     google: GoogleConfig,
 
+    #[cfg(feature = "vault")]
+    #[command(flatten)]
+    vault: HashicorpVaultConfig,
+
     #[command(flatten)]
     data: DataConfig,
 }
@@ -100,7 +108,17 @@ impl EnvConfig {
             return Ok((Box::new(self.google.into_vault()?), self.data));
         }
 
-        #[cfg(not(any(feature = "aws", feature = "azure", feature = "google")))]
+        #[cfg(feature = "vault")]
+        if self.vault.is_enabled() {
+            return Ok((Box::new(self.vault.into_vault()?), self.data));
+        }
+
+        #[cfg(not(any(
+            feature = "aws",
+            feature = "azure",
+            feature = "google",
+            feature = "vault"
+        )))]
         compile_error!("no cloud configured");
 
         unreachable!()

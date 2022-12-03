@@ -980,6 +980,7 @@ dependencies = [
  "clap",
  "futures",
  "google-secretmanager1",
+ "reqwest",
  "rusoto_core",
  "rusoto_credential",
  "rusoto_secretsmanager",
