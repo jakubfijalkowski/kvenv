@@ -42,6 +42,6 @@ default = ["aws", "azure", "google"]
 aws = ["rusoto_core", "rusoto_credential", "rusoto_secretsmanager"]
 azure = ["azure_core", "azure_identity", "azure_security_keyvault"]
 google = ["google-secretmanager1", "base64"]
-vault = ["reqwest"]
+vault = ["reqwest", "tokio/fs"]
 
 integration-tests = ["aws", "azure", "google"]
