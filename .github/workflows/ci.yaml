@@ -55,6 +55,13 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    services:
+      vault:
+        image: vault
+        ports:
+          - 8200:8200
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: test-token
     strategy:
       matrix:
         target:
@@ -68,6 +75,18 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
+      - name: "create Vault secrets"
+        run: |
+          mkdir /tmp/vault-cli
+          cd /tmp/vault-cli
+          curl -LO https://releases.hashicorp.com/vault/1.12.2/vault_1.12.2_linux_amd64.zip
+          unzip vault_1.12.2_linux_amd64.zip
+          chmod +x vault
+          ./vault kv put secret/prefixed-1 INTEGRATION_TESTS_A=work1 INTEGRATION_TESTS_B=work2
+          ./vault kv put secret/prefixed-2 INTEGRATION_TESTS_C=work3
+        env:
+          VAULT_ADDR: "http://127.0.0.1:8200"
+          VAULT_TOKEN: "test-token"
       - uses: actions-rs/cargo@v1
         name: "cargo test"
         with:
@@ -83,6 +102,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          VAULT_ADDR: "http://127.0.0.1:8200"
+          VAULT_TOKEN: "test-token"
 
   release:
     name: Create Github Release
