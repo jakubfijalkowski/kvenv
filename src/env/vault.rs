@@ -13,6 +13,7 @@ use super::{convert::as_valid_env_name, Vault, VaultConfig};
 #[command(group = ArgGroup::new("hashicorp"))]
 pub struct HashicorpVaultConfig {
     /// Use Hashicorp Vault.
+    ///
     /// Vault mode works differently to other clouds. When "single secret" mode is selected, it
     /// interprets the document as a key-value document, where key is the environment variable
     /// name. When in perfixed mode, the contents of each secret is concatenated, creating one big
@@ -21,19 +22,20 @@ pub struct HashicorpVaultConfig {
         name = "vault",
         long = "vault",
         group = "cloud",
-        requires = "vault",
+        requires = "vault_address",
         display_order = 400
     )]
     enabled: bool,
 
     /// [Hashicorp Vault] Address of the vault.
-    #[arg(long, env = "VAULT_ADDR", display_order = 401)]
+    #[arg(long, env = "VAULT_ADDR", requires = "vault_token", display_order = 401)]
     vault_address: Option<String>,
 
     /// [Hashicorp Vault] Token that should be used to authorize the request.
     #[arg(long, env = "VAULT_TOKEN", hide_env_values = true, display_order = 402)]
     vault_token: Option<String>,
 
+    /// [Hashicorp Vault] The path to the CA certificate used by the server.
     #[arg(long, value_parser, env = "VAULT_CACERT", display_order = 403)]
     vault_cacert: Option<PathBuf>,
 }
