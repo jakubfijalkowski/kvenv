@@ -28,7 +28,12 @@ pub struct HashicorpVaultConfig {
     enabled: bool,
 
     /// [Hashicorp Vault] Address of the vault.
-    #[arg(long, env = "VAULT_ADDR", requires = "vault_token", display_order = 401)]
+    #[arg(
+        long,
+        env = "VAULT_ADDR",
+        requires = "vault_token",
+        display_order = 401
+    )]
     vault_address: Option<String>,
 
     /// [Hashicorp Vault] Token that should be used to authorize the request.
@@ -219,4 +224,63 @@ struct ListResponse {
 #[derive(Deserialize, Debug)]
 struct KeyList {
     pub keys: Vec<String>,
+}
+
+#[cfg(all(test, feature = "integration-tests"))]
+mod tests {
+    use super::*;
+    use std::env;
+
+    macro_rules! env {
+        ($a:expr, $b:expr) => {
+            ($a.to_string(), $b.to_string())
+        };
+    }
+
+    #[test]
+    fn integration_tests_single_value() {
+        let cfg = HashicorpVaultConfig {
+            enabled: true,
+            vault_address: Some(env::var("VAULT_ADDR").unwrap()),
+            vault_token: Some(env::var("VAULT_TOKEN").unwrap()),
+            vault_cacert: None,
+        };
+        let mut proc_env = cfg
+            .into_vault()
+            .unwrap()
+            .download_json("prefixed-1")
+            .unwrap();
+        proc_env.sort();
+        assert_eq!(
+            vec![
+                env!("INTEGRATION_TESTS_A", "work1"),
+                env!("INTEGRATION_TESTS_B", "work2"),
+            ],
+            proc_env
+        );
+    }
+
+    #[test]
+    fn integration_tests_prefixed() {
+        let cfg = HashicorpVaultConfig {
+            enabled: true,
+            vault_address: Some(env::var("VAULT_ADDR").unwrap()),
+            vault_token: Some(env::var("VAULT_TOKEN").unwrap()),
+            vault_cacert: None,
+        };
+        let mut proc_env = cfg
+            .into_vault()
+            .unwrap()
+            .download_prefixed("prefixed-")
+            .unwrap();
+        proc_env.sort();
+        assert_eq!(
+            vec![
+                env!("INTEGRATION_TESTS_A", "work1"),
+                env!("INTEGRATION_TESTS_B", "work2"),
+                env!("INTEGRATION_TESTS_C", "work3")
+            ],
+            proc_env
+        );
+    }
 }

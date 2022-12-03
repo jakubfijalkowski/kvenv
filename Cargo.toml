@@ -44,4 +44,4 @@ azure = ["azure_core", "azure_identity", "azure_security_keyvault"]
 google = ["google-secretmanager1", "base64"]
 vault = ["reqwest", "tokio/fs"]
 
-integration-tests = ["aws", "azure", "google"]
+integration-tests = ["aws", "azure", "google", "vault"]
