@@ -63,10 +63,11 @@ jobs:
         env:
           VAULT_ADDR: "http://127.0.0.1:8200"
           VAULT_TOKEN: "test-token"
+      - uses: taiki-e/install-action@cross
+        if: ${{ matrix.target }} != 'x86_64-unknown-linux-gnu' 
       - name: "cargo test"
         run: |
           if [[ "${{ matrix.target }}" != 'x86_64-unknown-linux-gnu' ]]; then
-            cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
             tool=cross
           else
             tool=cargo
@@ -131,10 +132,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           target: ${{ matrix.target }}
+      - uses: taiki-e/install-action@cross
+        if: ${{ matrix.target }} != 'x86_64-unknown-linux-gnu' 
       - name: Build
         run: |
           if [[ "${{ matrix.target }}" != 'x86_64-unknown-linux-gnu' ]]; then
-            cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
             tool=cross
           else
             tool=cargo
