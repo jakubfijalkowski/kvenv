@@ -8,49 +8,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        name: "cargo check"
-        with:
-          command: check
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
           components: rustfmt
-      - uses: actions-rs/cargo@v1
-        name: "cargo fmt"
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
           components: clippy
-      - uses: actions-rs/cargo@v1
-        name: "cargo clippy"
-        with:
-          command: clippy
-          args: -- -D warnings
+      - run: cargo clippy -- -D warnings
 
   test:
     name: Test Suite
@@ -69,12 +48,9 @@ jobs:
         - x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
           target: ${{ matrix.target }}
-          override: true
       - name: "create Vault secrets"
         run: |
           mkdir /tmp/vault-cli
@@ -87,12 +63,16 @@ jobs:
         env:
           VAULT_ADDR: "http://127.0.0.1:8200"
           VAULT_TOKEN: "test-token"
-      - uses: actions-rs/cargo@v1
-        name: "cargo test"
-        with:
-          use-cross: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-          command: test
-          args: --features integration-tests --target ${{ matrix.target }}
+      - name: "cargo test"
+        run: |
+          if [[ "${{ matrix.target }}" != 'x86_64-unknown-linux-gnu' ]]; then
+            cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
+            tool=cross
+          else
+            tool=cargo
+          fi
+
+          $tool test --features integration-tests --target ${{ matrix.target }}
         env:
           KVENV_CLIENT_ID: ${{ secrets.KVENV_CLIENT_ID }}
           KVENV_TENANT_ID: ${{ secrets.KVENV_TENANT_ID }}
@@ -145,20 +125,22 @@ jobs:
         - azure
         - aws
         - google
+        - vault
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
           target: ${{ matrix.target }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        name: Build
-        with:
-          use-cross: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-          command: build
-          args: --release --no-default-features --features ${{ matrix.features }} --target ${{ matrix.target }}
+      - name: Build
+        run: |
+          if [[ "${{ matrix.target }}" != 'x86_64-unknown-linux-gnu' ]]; then
+            cargo install cross --git https://github.com/cross-rs/cross --tag v0.2.4
+            tool=cross
+          else
+            tool=cargo
+          fi
+
+          $tool build --release --no-default-features --features ${{ matrix.features }} --target ${{ matrix.target }}
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v1
         with:
