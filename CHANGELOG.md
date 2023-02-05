@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2023-02-05)
+
+- Vault is supported in the default featureset now,
+- kvenv uses Rust 2021 now
+- kvenv uses rustls as a TLS library instead of relying on native-tls
+
 ## 0.3.0 (2022-12-04)
 
 - Updated to Clap 4 - this changed what & how parameters are accepted
