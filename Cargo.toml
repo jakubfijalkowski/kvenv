@@ -7,7 +7,7 @@ repository = "https://github.com/jakubfijalkowski/kvenv"
 keywords = ["azure", "keyvault", "env"]
 license = "MIT OR Apache-2.0"
 authors = ["Jakub Fijałkowski <kuba@codinginfinity.me>"]
-edition = "2018"
+edition = "2021"
 version = "0.3.1"
 resolver = "2"
 
