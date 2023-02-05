@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
 use clap::{arg, ArgGroup, Args};
 use google_secretmanager1::{
     hyper, hyper::client::HttpConnector, hyper_rustls, hyper_rustls::HttpsConnector, oauth2,
@@ -213,8 +214,9 @@ impl GoogleConfig {
             .ok_or(GoogleError::EmptySecret)?
             .data
             .ok_or(GoogleError::EmptySecret)?;
-        let raw_bytes =
-            base64::decode(&data).map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))?;
+        let raw_bytes = base64
+            .decode(&data)
+            .map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))?;
         String::from_utf8(raw_bytes).map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))
     }
 }
