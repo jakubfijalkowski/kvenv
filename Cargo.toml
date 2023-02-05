@@ -15,27 +15,27 @@ resolver = "2"
 lto = true
 
 [dependencies]
-anyhow = "1.0.66"
-clap = { version = "4.0.29", features = ["derive", "cargo", "env"] }
-futures = "0.3.25"
-serde = { version = "1.0.148", features = ["derive"] }
-serde_json = "1.0.89"
+anyhow = "1.0.69"
+clap = { version = "4.1.4", features = ["derive", "cargo", "env"] }
+futures = "0.3.26"
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.92"
 tempfile = "3.3.0"
-thiserror = "1.0.37"
-tokio = { version = "1.22.0", features = ["rt", "rt-multi-thread", "macros"] }
+thiserror = "1.0.38"
+tokio = { version = "1.25.0", features = ["rt", "rt-multi-thread", "macros"] }
 
-azure_core = { version = "0.7.0", optional = true }
-azure_identity = { version = "0.8.0", optional = true }
-azure_security_keyvault = { version = "0.7.0", optional = true }
+azure_core = { version = "0.8.0", optional = true, default-features = false, features = ["enable_reqwest_rustls"]  }
+azure_identity = { version = "0.9.0", optional = true, default-features = false, features = ["enable_reqwest_rustls"]  }
+azure_security_keyvault = { version = "0.8.0", optional = true, default-features = false, features = ["enable_reqwest_rustls"]  }
 
 google-secretmanager1 = { version = "4.0.1", optional = true }
-base64 = {version = "0.13.1", optional = true }
+base64 = { version = "0.21.0", optional = true }
 
-rusoto_core = { version = "0.48.0", optional = true }
+rusoto_core = { version = "0.48.0", optional = true, default-features = false, features = ["rustls"] }
 rusoto_credential = { version = "0.48.0", optional = true }
-rusoto_secretsmanager = { version = "0.48.0", optional = true }
+rusoto_secretsmanager = { version = "0.48.0", optional = true, default-features = false, features = ["rustls"]  }
 
-reqwest = { version = "0.11.13", optional = true, features = ["json"] }
+reqwest = { version = "0.11.14", optional = true, default-features = false, features = ["rustls-tls", "json"] }
 
 [features]
 default = ["aws", "azure", "google"]
