@@ -20,8 +20,8 @@ pub fn as_valid_env_name(name: String) -> Result<String> {
 pub fn value_as_string(name: &str, v: Value) -> Result<String> {
     match v {
         Value::String(s) => Ok(s),
-        Value::Bool(b) => Ok(format!("{}", b)),
-        Value::Number(n) => Ok(format!("{}", n)),
+        Value::Bool(b) => Ok(format!("{b}")),
+        Value::Number(n) => Ok(format!("{n}")),
         Value::Null => Ok("null".to_string()),
         _ => bail!("secret '{}' value is not convertible", name),
     }

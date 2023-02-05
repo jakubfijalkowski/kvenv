@@ -79,6 +79,8 @@ impl ProcessEnv {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Display;
+
     use super::*;
 
     impl ProcessEnv {
@@ -97,9 +99,11 @@ mod tests {
         pub fn from_str(s: &str) -> Self {
             serde_json::from_str(s).unwrap()
         }
+    }
 
-        pub fn to_string(&self) -> String {
-            serde_json::to_string(self).unwrap()
+    impl Display for ProcessEnv {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", serde_json::to_string(self).unwrap())
         }
     }
 

@@ -137,7 +137,7 @@ impl Vault for GoogleConfig {
         let project = self.google_project.as_ref().unwrap();
         let response = manager
             .projects()
-            .secrets_list(&format!("projects/{}", project))
+            .secrets_list(&format!("projects/{project}"))
             .page_size(250)
             .doit()
             .await
@@ -205,7 +205,7 @@ impl GoogleConfig {
     ) -> Result<String> {
         let data = manager
             .projects()
-            .secrets_versions_access(&format!("{}/versions/latest", name))
+            .secrets_versions_access(&format!("{name}/versions/latest"))
             .doit()
             .await
             .map_err(GoogleError::SecretManagerError)?
@@ -215,7 +215,7 @@ impl GoogleConfig {
             .data
             .ok_or(GoogleError::EmptySecret)?;
         let raw_bytes = base64
-            .decode(&data)
+            .decode(data)
             .map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))?;
         String::from_utf8(raw_bytes).map_err(|e| GoogleError::WrongEncoding(anyhow::anyhow!(e)))
     }

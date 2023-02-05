@@ -133,7 +133,7 @@ impl AzureConfig {
         if let Some(url) = &self.azure_keyvault_url {
             Ok(url.to_string())
         } else if let Some(name) = &self.azure_keyvault_name {
-            Ok(format!("https://{}.vault.azure.net", name))
+            Ok(format!("https://{name}.vault.azure.net"))
         } else {
             Err(AzureError::ConfigurationError(anyhow::Error::msg(
                 "configuration is invalid (Clap should not validate that)",
