@@ -76,9 +76,11 @@ pub struct AzureCredential {
 #[derive(Error, Debug)]
 pub enum AzureError {
     #[error("Azure configuration error")]
-    ConfigurationError(#[source] anyhow::Error),
-    #[error("Azure configuration error")]
-    AzureError(#[source] azure_core::Error),
+    WrongConfiguration(#[source] anyhow::Error),
+    #[error("cannot create Azure KeyVault client")]
+    ClientError(#[source] azure_core::Error),
+    #[error("cannot download secret")]
+    CannotDownloadSecrets(#[source] azure_core::Error),
     #[error("cannot decode secret - it is not a valid JSON")]
     DecodeError(#[source] serde_json::Error),
 }
@@ -102,7 +104,7 @@ impl AzureCredential {
             || self.azure_client_id.is_some()
             || self.azure_client_secret.is_some();
         if has_some && !self.is_valid() {
-            Err(AzureError::ConfigurationError(anyhow::Error::msg(
+            Err(AzureError::WrongConfiguration(anyhow::Error::msg(
                 "if you want to use CLI-passed credentials, all need to be specified",
             )))
         } else {
@@ -137,7 +139,7 @@ impl AzureConfig {
         } else if let Some(name) = &self.azure_keyvault_name {
             Ok(format!("https://{name}.vault.azure.net"))
         } else {
-            Err(AzureError::ConfigurationError(anyhow::Error::msg(
+            Err(AzureError::WrongConfiguration(anyhow::Error::msg(
                 "configuration is invalid (Clap should not validate that)",
             )))
         }
@@ -163,7 +165,7 @@ impl VaultConfig for AzureConfig {
 
 impl AzureVault {
     fn get_client(&self) -> Result<SecretClient> {
-        SecretClient::new(&self.kv_address, self.credential.clone()).map_err(AzureError::AzureError)
+        SecretClient::new(&self.kv_address, self.credential.clone()).map_err(AzureError::ClientError)
     }
 
     fn strip_prefix(name: &str) -> &str {
@@ -184,7 +186,7 @@ impl Vault for AzureVault {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .map_err(AzureError::AzureError)?;
+            .map_err(AzureError::CannotDownloadSecrets)?;
         let secrets: Vec<_> = secrets
             .into_iter()
             .flat_map(|x| x.value.into_iter().map(|x| x.id))
@@ -202,7 +204,7 @@ impl Vault for AzureVault {
                     .get(s)
                     .into_future()
                     .await
-                    .map_err(AzureError::AzureError)
+                    .map_err(AzureError::CannotDownloadSecrets)
             }
         });
         let env_values = try_join_all(env_values).await?.into_iter().map(|x| x.value);
@@ -217,7 +219,7 @@ impl Vault for AzureVault {
             .get(secret_name)
             .into_future()
             .await
-            .map_err(AzureError::AzureError)?;
+            .map_err(AzureError::CannotDownloadSecrets)?;
         let value: Value = serde_json::from_str(&secret.value).map_err(AzureError::DecodeError)?;
         decode_env_from_json(secret_name, value)
     }
