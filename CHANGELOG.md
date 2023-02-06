@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (2023-02-06)
+
+- kvenv reports better errors when downloading single key (it needs to be JSON)
+
 ## 0.3.1 (2023-02-05)
 
 - Vault is supported in the default featureset now,

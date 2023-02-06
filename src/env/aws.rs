@@ -58,7 +58,7 @@ pub enum AwsError {
     GetSecretError(#[source] rusoto_core::RusotoError<GetSecretValueError>),
     #[error("cannot list secrets from Secrets Manager")]
     ListSecretsError(#[source] rusoto_core::RusotoError<ListSecretsError>),
-    #[error("cannot decode secret")]
+    #[error("cannot decode secret - it is not a valid JSON")]
     DecodeError(#[source] serde_json::Error),
     #[error("there are no secrets in the Secrets Manager")]
     NoSecrets,

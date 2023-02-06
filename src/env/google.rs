@@ -63,6 +63,8 @@ pub enum GoogleError {
     NoSecrets,
     #[error("secret encoding is invalid")]
     WrongEncoding(#[source] anyhow::Error),
+    #[error("cannot decode secret - it is not a valid JSON")]
+    DecodeError(#[source] serde_json::Error),
 }
 
 pub type Result<T, E = GoogleError> = std::result::Result<T, E>;
@@ -167,7 +169,7 @@ impl Vault for GoogleConfig {
     async fn download_json(&self, secret_name: &str) -> anyhow::Result<Vec<(String, String)>> {
         let mut manager = self.to_manager().await?;
         let secret = self.get_secret(&mut manager, secret_name).await?;
-        let value: Value = serde_json::from_str(&secret)?;
+        let value: Value = serde_json::from_str(&secret).map_err(GoogleError::DecodeError)?;
         decode_env_from_json(secret_name, value)
     }
 }

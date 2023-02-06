@@ -79,6 +79,8 @@ pub enum AzureError {
     ConfigurationError(#[source] anyhow::Error),
     #[error("Azure configuration error")]
     AzureError(#[source] azure_core::Error),
+    #[error("cannot decode secret - it is not a valid JSON")]
+    DecodeError(#[source] serde_json::Error),
 }
 
 pub struct AzureVault {
@@ -216,7 +218,7 @@ impl Vault for AzureVault {
             .into_future()
             .await
             .map_err(AzureError::AzureError)?;
-        let value: Value = serde_json::from_str(&secret.value)?;
+        let value: Value = serde_json::from_str(&secret.value).map_err(AzureError::DecodeError)?;
         decode_env_from_json(secret_name, value)
     }
 }
