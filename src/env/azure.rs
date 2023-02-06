@@ -165,7 +165,8 @@ impl VaultConfig for AzureConfig {
 
 impl AzureVault {
     fn get_client(&self) -> Result<SecretClient> {
-        SecretClient::new(&self.kv_address, self.credential.clone()).map_err(AzureError::ClientError)
+        SecretClient::new(&self.kv_address, self.credential.clone())
+            .map_err(AzureError::ClientError)
     }
 
     fn strip_prefix(name: &str) -> &str {
