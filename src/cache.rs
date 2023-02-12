@@ -24,6 +24,11 @@ pub struct Cache {
 
     #[command(flatten)]
     output_file: OutputFileConfig,
+
+    /// If set, `kvenv` will use OS's environment at the point in time when the environment is
+    /// downloaded.
+    #[arg(short = 'e', long)]
+    snapshot_env: bool,
 }
 
 #[derive(Args, Debug)]
@@ -77,7 +82,7 @@ fn store_env(e: env::ProcessEnv, out_file: OutputFile) -> Result<PathBuf> {
 }
 
 pub fn run_cache(c: Cache) -> Result<()> {
-    let cached_env = env::download_env(c.env).map_err(CacheError::Load)?;
+    let cached_env = env::download_env(c.env, c.snapshot_env).map_err(CacheError::Load)?;
     let out_file = get_output_file(c.output_file)?;
     let path = store_env(cached_env, out_file)?;
     println!("{}", path.display());

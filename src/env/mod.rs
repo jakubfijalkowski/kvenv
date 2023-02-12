@@ -58,11 +58,6 @@ pub struct DataConfig {
     )]
     secret_prefix: Option<String>,
 
-    /// If set, `kvenv` will use OS's environment at the point in time when the environment is
-    /// downloaded.
-    #[arg(short = 'e', long)]
-    snapshot_env: bool,
-
     /// Environment variables that should be masked by the subsequent calls to `with`.
     #[arg(short, long, display_order = 3)]
     mask: Vec<String>,
@@ -125,7 +120,7 @@ impl EnvConfig {
     }
 }
 
-pub fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
+pub fn download_env(cfg: EnvConfig, snapshot_env: bool) -> Result<ProcessEnv> {
     let (vault, cfg) = cfg.into_run_config()?;
     let from_kv = if cfg.secret_name.is_some() {
         vault.download_json(&cfg.secret_name.unwrap())?
@@ -134,5 +129,5 @@ pub fn download_env(cfg: EnvConfig) -> Result<ProcessEnv> {
     } else {
         unreachable!()
     };
-    Ok(ProcessEnv::new(from_kv, cfg.mask, cfg.snapshot_env))
+    Ok(ProcessEnv::new(from_kv, cfg.mask, snapshot_env))
 }

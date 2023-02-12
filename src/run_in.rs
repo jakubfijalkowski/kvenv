@@ -25,7 +25,7 @@ pub struct RunIn {
 }
 
 pub fn run_in(cfg: RunIn) -> Result<std::convert::Infallible> {
-    let env = download_env(cfg.env).map_err(RunInError::LoadError)?;
+    let env = download_env(cfg.env, false).map_err(RunInError::LoadError)?;
 
     let status = run::run_in_env(env, cfg.command)
         .map_err(|x| anyhow::Error::new(RunInError::RunError(x)))?;
