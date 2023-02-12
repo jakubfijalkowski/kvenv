@@ -13,7 +13,7 @@ authors = ["Jakub Fijałkowski <kuba@codinginfinity.me>"]
 edition = "2021"
 resolver = "2"
 
-version = "0.3.1"
+version = "0.4.0"
 
 [package.metadata.release]
 publish = false
