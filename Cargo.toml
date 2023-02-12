@@ -1,6 +1,9 @@
 [package]
 name = "kvenv"
-description = "Simple utility to run programs with environment downloaded from Azure KeyVault"
+description = """
+A simple command-line utility that allows running arbitrary commands within a custom environment \
+that is loaded from Azure KeyVault, GCP Secret Manager, AWS Secrets Manager or Hashicorp Vault."""
+
 categories = ["command-line-utilities"]
 homepage = "https://github.com/jakubfijalkowski/kvenv"
 repository = "https://github.com/jakubfijalkowski/kvenv"
