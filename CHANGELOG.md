@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+<!-- next-header -->
+
+## Unreleased (ReleaseDate)
 
 - AWS Secret Manager integration no longer interprets keys in prefixed mode as JSON,
 - `--snapshot-env` option is not valid in `cache` command only.

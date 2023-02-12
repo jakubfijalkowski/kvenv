@@ -11,8 +11,26 @@ keywords = ["azure", "keyvault", "env"]
 license = "MIT OR Apache-2.0"
 authors = ["Jakub Fijałkowski <kuba@codinginfinity.me>"]
 edition = "2021"
-version = "0.3.1"
 resolver = "2"
+
+version = "0.3.1"
+
+[package.metadata.release]
+publish = false
+allow-branch = ["main"]
+
+sign-tag = true
+sign-commit = true
+
+pre-release-commit-message = "Release v{{version}}"
+tag-message = "Release v{{version}}"
+tag-name = "v{{version}}"
+
+pre-release-replacements = [
+  {file="CHANGELOG.md", search="Unreleased", replace="{{version}}"},
+  {file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}"},
+  {file="CHANGELOG.md", search="<!-- next-header -->", replace="<!-- next-header -->\n\n## Unreleased (ReleaseDate)", exactly=1},
+]
 
 [profile.release]
 lto = true
