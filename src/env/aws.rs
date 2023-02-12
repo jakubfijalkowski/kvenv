@@ -9,7 +9,10 @@ use rusoto_secretsmanager::{
 use serde_json::Value;
 use thiserror::Error;
 
-use super::{convert::decode_env_from_json, Vault, VaultConfig};
+use super::{
+    convert::{convert_env_name, decode_env_from_json},
+    Vault, VaultConfig,
+};
 
 #[derive(Args, Debug)]
 pub struct AwsConfig {
@@ -56,9 +59,13 @@ pub enum AwsError {
     CredentialsError(#[source] CredentialsError),
     #[error("cannot load secret from Secrets Manager")]
     GetSecretError(#[source] rusoto_core::RusotoError<GetSecretValueError>),
+    #[error("the secret does not have string data")]
+    NoStringData(String),
+    #[error("the secret name is not valid environemnt variable name")]
+    InvalidSecretName(String),
     #[error("cannot list secrets from Secrets Manager")]
     ListSecretsError(#[source] rusoto_core::RusotoError<ListSecretsError>),
-    #[error("cannot decode secret - it is not a valid JSON")]
+    #[error("cannot decode secret - it is not a valid JSON object")]
     DecodeError(#[source] serde_json::Error),
     #[error("there are no secrets in the Secrets Manager")]
     NoSecrets,
@@ -134,10 +141,14 @@ impl Vault for AwsVault {
                     })
                     .await
                     .map_err(AwsError::GetSecretError)?;
-                let value = decode_secret(secret)?;
-                decode_env_from_json(&name, value)
+                let value = secret
+                    .secret_string
+                    .ok_or_else(|| AwsError::NoStringData(name.clone()))?;
+                let name = convert_env_name(prefix, &name)
+                    .map_err(|_| AwsError::InvalidSecretName(name.clone()))?;
+                Ok::<_, AwsError>((name, value))
             });
-        let values: Vec<_> = try_join_all(results).await?.into_iter().flatten().collect();
+        let values: Vec<_> = try_join_all(results).await?.into_iter().collect();
         Ok(values)
     }
 
@@ -195,7 +206,7 @@ mod tests {
         let proc_env = cfg
             .into_vault()
             .unwrap()
-            .download_json("kvenv-tests/prefixed-1")
+            .download_json("kvenv-tests/single")
             .unwrap();
         assert_eq!(
             vec![
